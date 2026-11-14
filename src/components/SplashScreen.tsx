@@ -69,7 +69,6 @@ export default function SplashScreen({ ativo, segundosDecorridos }: Props) {
         </div>
 
         <h1 className="splash-title">CytoCount</h1>
-        <p className="splash-subtitle">Contagem & Viabilidade Celular por Fluorescência</p>
 
         {/* Mensagem e Barra de Progresso */}
         <div className="splash-progress-container">

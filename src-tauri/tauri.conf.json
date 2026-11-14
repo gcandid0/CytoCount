@@ -12,7 +12,7 @@
   "app": {
     "windows": [
       {
-        "title": "CytoCount — Contagem de Células por Fluorescência",
+        "title": "CytoCount",
         "width": 1280,
         "height": 820,
         "minWidth": 960,
