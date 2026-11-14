@@ -997,48 +997,43 @@ def classificar_nucleos(
             sub_verde = mask_verde_bin[y0:y1, x0:x1]
             sub_amarelo = mask_amarela_bin[y0:y1, x0:x1]
 
-            # 1. Medição de Calceína (Verde / Vivas):
-            # Calceína-AM é um fluoróforo que preenche o citoplasma e o corpo celular.
-            # Avaliamos o sinal sobre a célula completa (citoplasma + núcleo).
+            # 1. Região Core (nuclear e perinuclear imediata):
+            # Cobre o núcleo e a borda nuclear onde o Iodeto de Propídio (PI) se acumula em células mortas.
+            raio_core = max(3, int(raio_dilatacao // 2) if usar_cito else int(raio_dilatacao))
+            kernel_core = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (raio_core * 2 + 1, raio_core * 2 + 1))
+            mask_core = cv2.dilate(sub_obj, kernel_core) > 0 if area_nucleo > 0 else sub_regiao
+
+            # 2. Medição de Calceína (Verde / Vivas):
             frac_verde_celula = float(sub_verde[sub_regiao].mean()) if area_regiao > 0 else 0.0
+            frac_verde_core = float(sub_verde[mask_core].mean()) if mask_core.sum() > 0 else 0.0
+            frac_verde = max(frac_verde_celula, frac_verde_core)
 
-            # 2. Medição de Iodeto de Propídio / PI (Amarelo / Mortas):
-            # PI é um intercalante de DNA que se acumula estritamente no NÚCLEO em células mortas.
-            # No citoplasma de células vivas com calceína intensa, existe sangramento espectral verde->vermelho
-            # e autofluorescência de fundo. Portanto, o sinal de PI para morte celular é estritamente NUCLEAR.
-            if area_nucleo > 0:
-                kernel_nuc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
-                mask_nuc_eval = cv2.dilate(sub_obj, kernel_nuc) > 0
-                frac_amarela_nuc = float(sub_amarelo[mask_nuc_eval].mean()) if mask_nuc_eval.sum() > 0 else 0.0
-                frac_verde_nuc = float(sub_verde[mask_nuc_eval].mean()) if mask_nuc_eval.sum() > 0 else 0.0
-            else:
-                frac_amarela_nuc = float(sub_amarelo[sub_regiao].mean())
-                frac_verde_nuc = 0.0
+            # 3. Medição de Iodeto de Propídio / PI (Amarelo / Mortas):
+            frac_amarela_core = float(sub_amarelo[mask_core].mean()) if mask_core.sum() > 0 else 0.0
+            frac_amarela_celula = float(sub_amarelo[sub_regiao].mean()) if area_regiao > 0 else 0.0
+            frac_amarela = max(frac_amarela_core, frac_amarela_celula if not usar_cito else 0.0)
 
-            frac_verde = max(frac_verde_celula, frac_verde_nuc)
-            frac_amarela = frac_amarela_nuc
+            # Critérios de detecção de morte celular:
+            # a) PI presente no core nuclear/perinuclear (sensibilidade calibrada em >= 12%)
+            pos_amarelo_core = frac_amarela_core >= 0.12
+            # b) OU corpo celular com fluorescência amarela e sem verde (morte necrótica avançada)
+            pos_amarelo_corpo = (frac_amarela_celula >= 0.22) and (frac_verde_celula < 0.22)
+            pos_amarelo = pos_amarelo_core or pos_amarelo_corpo
 
             pos_verde = frac_verde >= FRACAO_MINIMA_VERDE
-            pos_amarelo = frac_amarela_nuc >= FRACAO_MINIMA_AMARELA
 
-            # Classificação biológica com desempate espectral robusto:
-            if pos_amarelo and pos_verde:
-                # Duplo-positiva: distingue sangramento espectral (calceína brilhante com cauda amarela)
-                # de morte celular verdadeira (PI nuclear dominante).
-                if frac_verde >= 0.30 and frac_verde > frac_amarela_nuc * 1.3:
-                    # Sinal citoplasmático verde é o fluoróforo primário dominante
+            # Classificação:
+            if pos_amarelo:
+                # Confirmação de morte celular: PI detectado no core nuclear ou corpo necrótico.
+                # Apenas se o verde for extremamente saturado (> 65%) E o amarelo no core for ruído mínimo (< 14%)
+                if frac_verde >= 0.65 and frac_amarela_core < 0.14 and not pos_amarelo_corpo:
                     classe = "viavel"
                     n_viaveis += 1
                     labels_viaveis[y0:y1, x0:x1][mask_desenho] = label_id
                 else:
-                    # PI nuclear consolidado indica perda de integridade de membrana
                     classe = "morta"
                     n_mortas += 1
                     labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
-            elif pos_amarelo:
-                classe = "morta"
-                n_mortas += 1
-                labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
             elif pos_verde:
                 classe = "viavel"
                 n_viaveis += 1
