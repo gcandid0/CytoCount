@@ -94,6 +94,10 @@ def test_process_and_reprocess_flow():
         rel_m = res_m["relatorio"]
         assert rel_m["Motor de Segmentação"] == nome_esperado
         assert rel_m["Detectados"] == rel_m["Viáveis (Verde)"] + rel_m["Mortas (Amarelo)"] + rel_m["Indeterminadas"]
+        if res_m.get("tabela_celulas"):
+            cel0 = res_m["tabela_celulas"][0]
+            assert "area_citoplasma_px" in cel0
+            assert "contorno_citoplasma_pts" in cel0
 
     # 4. Testa 404 em job_id inexistente
     r_404 = client.post("/api/reprocess/id-ficticio-inexistente", data=data_roi)

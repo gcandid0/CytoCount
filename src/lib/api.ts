@@ -189,6 +189,8 @@ export interface Parametros {
   area_maxima: number | null;
   formula_viabilidade: string;
   motor_segmentacao?: MotorSegmentacao;
+  segmentar_citoplasma?: boolean;
+  raio_citoplasma?: number;
   roi?: ROI | null;
 }
 
@@ -197,6 +199,7 @@ export type ClasseCelula = "viavel" | "morta" | "indeterminada";
 export interface CelulaIndividual {
   celula_id: number;
   area_px: number;
+  area_citoplasma_px?: number;
   area_regiao_px?: number;
   centro_x: number;
   centro_y: number;
@@ -206,6 +209,7 @@ export interface CelulaIndividual {
   cobertura_amarela_pct: number;
   classificacao: ClasseCelula;
   contorno_pts?: number[][];
+  contorno_citoplasma_pts?: number[][];
   manual?: boolean;
 }
 
@@ -304,6 +308,8 @@ export async function processarImagem(
   }
   fd.append("formula_viabilidade", p.formula_viabilidade);
   fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
+  fd.append("segmentar_citoplasma", String(p.segmentar_citoplasma ?? true));
+  fd.append("raio_citoplasma", String(p.raio_citoplasma ?? 8));
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -341,6 +347,8 @@ export async function reprocessarAmostra(
   }
   fd.append("formula_viabilidade", p.formula_viabilidade);
   fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
+  fd.append("segmentar_citoplasma", String(p.segmentar_citoplasma ?? true));
+  fd.append("raio_citoplasma", String(p.raio_citoplasma ?? 8));
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -433,6 +441,8 @@ export async function mesclarCanaisAPI(opcoes: {
   }
   fd.append("formula_viabilidade", opcoes.parametros.formula_viabilidade);
   fd.append("motor_segmentacao", opcoes.parametros.motor_segmentacao ?? "watershed");
+  fd.append("segmentar_citoplasma", String(opcoes.parametros.segmentar_citoplasma ?? true));
+  fd.append("raio_citoplasma", String(opcoes.parametros.raio_citoplasma ?? 8));
   fd.append("idioma", opcoes.idioma);
 
   const resp = await fetch(`${base}/api/merge-channels`, { method: "POST", body: fd });
