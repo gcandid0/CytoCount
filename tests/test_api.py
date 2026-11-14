@@ -82,6 +82,19 @@ def test_process_and_reprocess_flow():
     res_reproc = r_reproc.json()
     assert res_reproc["relatorio"]["ROI Dict"]["w"] == 250
 
+    # 3.1 Testa reprocessamento com motor StarDist 2D e Cellpose 2D
+    for motor, nome_esperado in [("stardist", "StarDist 2D"), ("cellpose", "Cellpose 2D"), ("watershed", "Watershed Clássico")]:
+        data_motor = {
+            **data_roi,
+            "motor_segmentacao": motor,
+        }
+        r_m = client.post(f"/api/reprocess/{job_id}", data=data_motor)
+        assert r_m.status_code == 200, f"Erro no motor {motor}: {r_m.text}"
+        res_m = r_m.json()
+        rel_m = res_m["relatorio"]
+        assert rel_m["Motor de Segmentação"] == nome_esperado
+        assert rel_m["Detectados"] == rel_m["Viáveis (Verde)"] + rel_m["Mortas (Amarelo)"] + rel_m["Indeterminadas"]
+
     # 4. Testa 404 em job_id inexistente
     r_404 = client.post("/api/reprocess/id-ficticio-inexistente", data=data_roi)
     assert r_404.status_code == 404

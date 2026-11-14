@@ -178,6 +178,8 @@ export interface ROI {
   h: number;
 }
 
+export type MotorSegmentacao = "watershed" | "stardist" | "cellpose";
+
 export interface Parametros {
   bias_azul: number;
   bias_verde: number;
@@ -186,6 +188,7 @@ export interface Parametros {
   min_circularidade: number;
   area_maxima: number | null;
   formula_viabilidade: string;
+  motor_segmentacao?: MotorSegmentacao;
   roi?: ROI | null;
 }
 
@@ -237,6 +240,7 @@ export interface RelatorioAmostra {
   ROI?: string;
   "ROI Dict"?: ROI | null;
   "Edições Manuais"?: number;
+  "Motor de Segmentação"?: string;
   "Formato com perda (JPEG)": "Sim" | "Não";
 }
 
@@ -299,6 +303,7 @@ export async function processarImagem(
     fd.append("area_maxima", String(p.area_maxima));
   }
   fd.append("formula_viabilidade", p.formula_viabilidade);
+  fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -335,6 +340,7 @@ export async function reprocessarAmostra(
     fd.append("area_maxima", String(p.area_maxima));
   }
   fd.append("formula_viabilidade", p.formula_viabilidade);
+  fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -382,11 +388,13 @@ export async function atualizarCelulasManual(
 }
 
 export async function carregarAmostraDemo(
-  idioma: Idioma = "pt"
+  idioma: Idioma = "pt",
+  motorSegmentacao: MotorSegmentacao = "watershed"
 ): Promise<ResultadoProcessamento> {
   const base = await obterApiBase();
   const fd = new FormData();
   fd.append("idioma", idioma);
+  fd.append("motor_segmentacao", motorSegmentacao);
   const resp = await fetch(`${base}/api/sample-demo`, { method: "POST", body: fd });
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => null);
@@ -424,6 +432,7 @@ export async function mesclarCanaisAPI(opcoes: {
     fd.append("area_maxima", String(opcoes.parametros.area_maxima));
   }
   fd.append("formula_viabilidade", opcoes.parametros.formula_viabilidade);
+  fd.append("motor_segmentacao", opcoes.parametros.motor_segmentacao ?? "watershed");
   fd.append("idioma", opcoes.idioma);
 
   const resp = await fetch(`${base}/api/merge-channels`, { method: "POST", body: fd });

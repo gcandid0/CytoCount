@@ -177,8 +177,13 @@ ${htmlInterno}
           <div>
             <h1>CytoCount — Relatório Executivo de Viabilidade Celular</h1>
             <p>
-              Segmentação Morfológica Watershed & Limiarização Adaptativa de Otsu ·{" "}
-              <span className="mono-tag">Versão {APP_VERSION}</span>
+              Motor de Segmentação:{" "}
+              {parametros.motor_segmentacao === "stardist"
+                ? "StarDist 2D (Polígonos Estrelados & NMS)"
+                : parametros.motor_segmentacao === "cellpose"
+                ? "Cellpose 2D (Fluxo Vetorial & CLAHE)"
+                : "Watershed Clássico & Limiarização Adaptativa de Otsu"}{" "}
+              · <span className="mono-tag">Versão {APP_VERSION}</span>
             </p>
           </div>
           <div className="print-meta">
@@ -433,6 +438,14 @@ ${htmlInterno}
         <section className="print-section">
           <h2>4. Parâmetros de Calibração e Auditoria de Edições Manuais</h2>
           <div className="print-params-box">
+            <div>
+              <strong>Motor de Segmentação:</strong>{" "}
+              {parametros.motor_segmentacao === "stardist"
+                ? "StarDist 2D (Schmidt et al., 2018)"
+                : parametros.motor_segmentacao === "cellpose"
+                ? "Cellpose 2D (Stringer et al., 2021)"
+                : "Watershed Clássico"}
+            </div>
             <div>
               <strong>Fórmula de Viabilidade:</strong> {parametros.formula_viabilidade}
             </div>

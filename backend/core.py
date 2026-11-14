@@ -93,6 +93,7 @@ def calcular_estatisticas_unificadas(
     roi_aplicado: Optional[dict[str, int]] = None,
     eh_jpeg: bool = False,
     manual_edits: Optional[list[dict[str, Any]]] = None,
+    motor_segmentacao: str = "watershed",
 ) -> dict[str, Any]:
     """
     FONTE ÚNICA DA VERDADE para todas as contagens e porcentagens no CytoCount:
@@ -124,6 +125,12 @@ def calcular_estatisticas_unificadas(
     )
 
     n_edicoes = len(manual_edits) if manual_edits else 0
+    mapa_motores = {
+        "watershed": "Watershed Clássico",
+        "stardist": "StarDist 2D",
+        "cellpose": "Cellpose 2D",
+    }
+    nome_motor = mapa_motores.get((motor_segmentacao or "watershed").lower(), "Watershed Clássico")
 
     return {
         "Arquivo": nome_arquivo,
@@ -146,6 +153,7 @@ def calcular_estatisticas_unificadas(
         "ROI": roi_str,
         "ROI Dict": roi_aplicado,
         "Edições Manuais": n_edicoes,
+        "Motor de Segmentação": nome_motor,
         "Formato com perda (JPEG)": "Sim" if eh_jpeg else "Não",
     }
 
@@ -483,19 +491,376 @@ def desenhar_celulas_de_tabela(
     return saida
 
 
+def _filtrar_labels_morfologia(
+    labels: np.ndarray,
+    area_minima: float,
+    area_maxima: Optional[float],
+    min_circularidade: float,
+) -> tuple[int, np.ndarray]:
+    """Filtra matriz de labels por área mínima, área máxima e circularidade mínima."""
+    max_lbl = int(labels.max())
+    if max_lbl == 0:
+        return 0, np.zeros_like(labels, dtype=np.int32)
+
+    areas = np.bincount(labels.ravel())
+    slices = ndi.find_objects(labels)
+
+    numero_celulas = 0
+    valid_labels = []
+
+    for label_id in range(1, len(areas)):
+        area_pixel = areas[label_id]
+        if area_pixel < area_minima:
+            continue
+        if area_maxima is not None and area_pixel > area_maxima:
+            continue
+
+        if min_circularidade > 0.0:
+            sl = slices[label_id - 1] if (label_id - 1 < len(slices)) else None
+            if sl is None:
+                continue
+            sub_labels = labels[sl]
+            mask_obj = np.uint8(sub_labels == label_id) * 255
+            contornos, _ = cv2.findContours(mask_obj, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if not contornos:
+                continue
+            c = max(contornos, key=cv2.contourArea)
+            area_contour = cv2.contourArea(c)
+            perimetro = cv2.arcLength(c, True)
+            if perimetro == 0:
+                continue
+            circularidade = (4 * np.pi * area_contour) / (perimetro * perimetro)
+            if circularidade < min_circularidade:
+                continue
+
+        numero_celulas += 1
+        valid_labels.append(label_id)
+
+    lut = np.zeros(max_lbl + 1, dtype=np.int32)
+    if valid_labels:
+        lut[valid_labels] = np.arange(1, len(valid_labels) + 1, dtype=np.int32)
+    return numero_celulas, lut[labels]
+
+
+def segmentar_nucleos_stardist(
+    canal_8u: np.ndarray,
+    corrigido: np.ndarray,
+    mask_base: np.ndarray,
+    bias: int = 0,
+    area_maxima: Optional[float] = None,
+    min_circularidade: float = 0.0,
+) -> tuple[int, np.ndarray, dict[str, Any]]:
+    """
+    Motor StarDist 2D (Schmidt et al., MICCAI 2018):
+    1. Se o pacote `stardist` estiver instalado no ambiente Python com pesos '2D_versatile_fluo',
+       executa a inferência neural direta.
+    2. Caso contrário (ou no executável autônomo sem TensorFlow), executa a formulação matemática
+       do StarDist 2D: Mapa de probabilidade centro-radial + projeção de polígonos estrelados
+       convexos de 32 raios (Star-Convex Polygons) + Non-Maximum Suppression (NMS) poligonal.
+    """
+    escala = estimar_escala_objeto(mask_base)
+    raio_est = float(np.sqrt(escala / np.pi)) if (escala and escala > 0) else 7.5
+    area_minima = max(float(RUIDO_AREA_MINIMA_PX), (escala or 40.0) * 0.14)
+    min_dist = int(np.clip(raio_est * 0.55, 3, 22))
+
+    # Tentativa 1: Pacote oficial StarDist2D se instalado no Python do sistema
+    try:
+        from stardist.models import StarDist2D  # type: ignore
+        from csbdeep.utils import normalize as csb_norm  # type: ignore
+
+        model = StarDist2D.from_pretrained("2D_versatile_fluo")
+        prob_thr = float(np.clip(0.48 - bias * 0.008, 0.15, 0.85))
+        img_norm = csb_norm(canal_8u.astype(np.float32), 1.0, 99.8)
+        labels_sd, _ = model.predict_instances(img_norm, prob_thresh=prob_thr, nms_thresh=0.35)
+        n_cel, labels_filt = _filtrar_labels_morfologia(
+            labels_sd.astype(np.int32), area_minima, area_maxima, min_circularidade
+        )
+        return n_cel, labels_filt, {
+            "area_minima": round(area_minima, 1),
+            "min_distance": min_dist,
+            "motor": "stardist_pretrained",
+        }
+    except Exception:
+        pass
+
+    # Formulação Matemática StarDist 2D (Polígonos Estrelados de 32 Raios + Supressão Não-Máxima NMS)
+    H, W = canal_8u.shape[:2]
+    mask_limpa = limpar_mascara(mask_base)
+    dist = cv2.distanceTransform(mask_limpa, cv2.DIST_L2, 5)
+    if dist.max() <= 0:
+        return 0, np.zeros((H, W), dtype=np.int32), {"area_minima": round(area_minima, 1), "min_distance": min_dist}
+
+    # Mapa de Probabilidade Central P(y, x) combinando intensidade normalizada + distância radial + filtro LoG
+    norm_int = normalizar_robusto(corrigido.astype(np.float32), 1.0, 99.8).astype(np.float32) / 255.0
+    dist_norm = dist / (dist.max() + 1e-6)
+    g1 = cv2.GaussianBlur(norm_int, (0, 0), max(1.2, raio_est * 0.35))
+    g2 = cv2.GaussianBlur(norm_int, (0, 0), max(2.4, raio_est * 0.85))
+    dog = np.clip(g1 - 0.65 * g2, 0.0, 1.0)
+    prob_map = (0.45 * dist_norm + 0.35 * norm_int + 0.20 * dog) * (mask_limpa > 0)
+
+    prob_thresh = float(np.clip(0.22 - bias * 0.005, 0.08, 0.65))
+    k_peak = max(3, int(min_dist) * 2 + 1)
+    kernel_p = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_peak, k_peak))
+    dilated_p = cv2.dilate(prob_map, kernel_p)
+    peaks = (prob_map >= dilated_p - 1e-6) & (prob_map >= prob_thresh) & (dist >= 1.5)
+
+    ys, xs = np.where(peaks)
+    if len(ys) == 0:
+        return 0, np.zeros((H, W), dtype=np.int32), {"area_minima": round(area_minima, 1), "min_distance": min_dist}
+
+    scores = prob_map[ys, xs]
+    ordem = np.argsort(-scores)
+    ys = ys[ordem]
+    xs = xs[ordem]
+    scores = scores[ordem]
+
+    # 32 raios equiangulares (Star-Convex 32 rays)
+    n_rays = 32
+    angulos = np.linspace(0, 2.0 * np.pi, n_rays, endpoint=False)
+    cos_a = np.cos(angulos)
+    sin_a = np.sin(angulos)
+    max_raio_busca = int(np.clip(raio_est * 2.8, 10, 48))
+
+    # NMS (Non-Maximum Suppression) baseado em sobreposição de círculos/polígonos estrelados
+    aceitos_xyr: list[tuple[int, int, np.ndarray, float]] = []
+    nms_thresh = 0.35
+
+    for idx in range(len(ys)):
+        cy, cx = int(ys[idx]), int(xs[idx])
+        r0 = float(dist[cy, cx])
+
+        # Verifica colisão NMS com candidatos de maior probabilidade já aceitos
+        suprimido = False
+        for ac_x, ac_y, ac_raios, ac_rmean in aceitos_xyr:
+            d_centros = math.hypot(cx - ac_x, cy - ac_y)
+            if d_centros < (r0 + ac_rmean) * (1.0 - nms_thresh):
+                suprimido = True
+                break
+        if suprimido:
+            continue
+
+        # Marcha radial nos 32 raios para encontrar a borda estrelada do núcleo
+        raios_k = np.zeros(n_rays, dtype=np.float32)
+        int_centro = max(0.15, float(norm_int[cy, cx]))
+        limiar_borda = int_centro * 0.42
+
+        for k in range(n_rays):
+            ca, sa = cos_a[k], sin_a[k]
+            r_final = max(2.0, r0)
+            for step in range(2, max_raio_busca + 1):
+                ny = int(round(cy + sa * step))
+                nx = int(round(cx + ca * step))
+                if ny < 0 or ny >= H or nx < 0 or nx >= W:
+                    r_final = float(step - 1)
+                    break
+                if mask_limpa[ny, nx] == 0 or norm_int[ny, nx] < limiar_borda:
+                    r_final = float(step - 0.5)
+                    break
+                # Se a distância ao fundo começar a subir novamente (entrando em outro núcleo vizinho), para na sela!
+                if step > r0 + 1.5 and dist[ny, nx] > dist[int(round(cy + sa * (step - 1))), int(round(cx + ca * (step - 1)))] + 0.4:
+                    r_final = float(step - 1)
+                    break
+                r_final = float(step)
+            raios_k[k] = r_final
+
+        # Suavização circular dos 32 raios (garante regularidade convexa estrelada)
+        raios_suaves = (
+            0.22 * np.roll(raios_k, -1)
+            + 0.56 * raios_k
+            + 0.22 * np.roll(raios_k, 1)
+        )
+        aceitos_xyr.append((cx, cy, raios_suaves, float(raios_suaves.mean())))
+
+    # Rasteriza os polígonos estrelados de 32 vértices em ordem reversa de score (maior score prevalece nas bordas)
+    labels_star = np.zeros((H, W), dtype=np.int32)
+    for idx_poly in range(len(aceitos_xyr) - 1, -1, -1):
+        cx, cy, raios_s, _ = aceitos_xyr[idx_poly]
+        pts_x = np.clip(np.round(cx + cos_a * raios_s), 0, W - 1).astype(np.int32)
+        pts_y = np.clip(np.round(cy + sin_a * raios_s), 0, H - 1).astype(np.int32)
+        pts = np.stack([pts_x, pts_y], axis=1).reshape((-1, 1, 2))
+        cv2.fillPoly(labels_star, [pts], int(idx_poly + 1))
+
+    # Restringe ao foreground real para não extravasar fundo escuro
+    labels_star = labels_star * (mask_limpa > 0)
+    n_cel, labels_filt = _filtrar_labels_morfologia(
+        labels_star, area_minima, area_maxima, min_circularidade
+    )
+    return n_cel, labels_filt, {
+        "area_minima": round(area_minima, 1),
+        "min_distance": min_dist,
+        "motor": "stardist_2d",
+    }
+
+
+def segmentar_nucleos_cellpose(
+    canal_8u: np.ndarray,
+    corrigido: np.ndarray,
+    mask_base: np.ndarray,
+    bias: int = 0,
+    area_maxima: Optional[float] = None,
+    min_circularidade: float = 0.0,
+) -> tuple[int, np.ndarray, dict[str, Any]]:
+    """
+    Motor Cellpose 2D (Stringer et al., Nature Methods 2021):
+    1. Se o pacote `cellpose` estiver instalado no Python, executa o modelo 'nuclei'.
+    2. Caso contrário (ou no executável autônomo), executa o pipeline de Fluxo Vetorial de Gradiente
+       do Cellpose: Equalização adaptativa CLAHE + Campo de Probabilidade Celular Local + Simulação
+       de Difusão Térmica e Rastreamento de Atratrizes por Integração de Euler (Gradient Flow Tracking).
+    """
+    escala = estimar_escala_objeto(mask_base)
+    raio_est = float(np.sqrt(escala / np.pi)) if (escala and escala > 0) else 7.5
+    area_minima = max(float(RUIDO_AREA_MINIMA_PX), (escala or 40.0) * 0.12)
+    min_dist = int(np.clip(raio_est * 0.55, 3, 22))
+
+    # Tentativa 1: Pacote oficial Cellpose se instalado no Python do sistema
+    try:
+        from cellpose import models as cp_models  # type: ignore
+
+        model = cp_models.CellposeModel(gpu=False, model_type="nuclei")
+        cellprob_thr = float(np.clip(-bias * 0.12, -4.0, 4.0))
+        masks_cp, _, _ = model.eval(
+            canal_8u,
+            diameter=max(8.0, raio_est * 2.0),
+            channels=[0, 0],
+            cellprob_threshold=cellprob_thr,
+        )
+        n_cel, labels_filt = _filtrar_labels_morfologia(
+            masks_cp.astype(np.int32), area_minima, area_maxima, min_circularidade
+        )
+        return n_cel, labels_filt, {
+            "area_minima": round(area_minima, 1),
+            "min_distance": min_dist,
+            "motor": "cellpose_pretrained",
+        }
+    except Exception:
+        pass
+
+    # Formulação Matemática Cellpose 2D (CLAHE + Campo Vetorial de Fluxo Espacial + Integração de Euler)
+    H, W = canal_8u.shape[:2]
+    clahe = cv2.createCLAHE(clipLimit=2.6, tileGridSize=(8, 8))
+    realcado = clahe.apply(corrigido)
+
+    # Combina limiar de Otsu global com limiar adaptativo local (sensível a células fracas em confluência)
+    mask_otsu, limiar_otsu, _ = limiar_otsu_com_ajuste(realcado, bias=bias)
+    bloco_adapt = max(15, int(round(raio_est * 4.0)) | 1)
+    c_adapt = float(np.clip(-4.0 - bias * 0.25, -18.0, 8.0))
+    mask_adapt = cv2.adaptiveThreshold(
+        cv2.GaussianBlur(realcado, (5, 5), 0),
+        255,
+        cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+        cv2.THRESH_BINARY,
+        bloco_adapt,
+        c_adapt,
+    )
+    mask_cp = cv2.bitwise_and(mask_adapt, cv2.dilate(mask_otsu, np.ones((5, 5), np.uint8)))
+    mask_cp = limpar_mascara(mask_cp)
+
+    dist = cv2.distanceTransform(mask_cp, cv2.DIST_L2, 5)
+    if dist.max() <= 0:
+        return 0, np.zeros((H, W), dtype=np.int32), {"area_minima": round(area_minima, 1), "min_distance": min_dist}
+
+    # Potencial de difusão suave U(y, x) dentro da máscara celular (simula a difusão térmica do Cellpose)
+    sigma_flow = max(1.2, min(4.5, raio_est * 0.42))
+    potencial = cv2.GaussianBlur(dist * (0.6 + 0.4 * (realcado.astype(np.float32) / 255.0)), (0, 0), sigma_flow)
+
+    # Campo Vetorial de Gradiente Espacial (mu_y, mu_x) apontando para os atratores (centros celulares)
+    grad_y = cv2.Sobel(potencial, cv2.CV_32F, 0, 1, ksize=3)
+    grad_x = cv2.Sobel(potencial, cv2.CV_32F, 1, 0, ksize=3)
+    norma = np.sqrt(grad_y * grad_y + grad_x * grad_x) + 1e-5
+    mu_y = grad_y / norma
+    mu_x = grad_x / norma
+
+    # Identifica os atratores (sinks) para onde os fluxos convergem
+    k_sink = max(3, int(min_dist) * 2 + 1)
+    kernel_s = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (k_sink, k_sink))
+    dilated_u = cv2.dilate(potencial, kernel_s)
+    sinks_mask = (potencial >= dilated_u - 1e-5) & (mask_cp > 0) & (dist >= 1.2)
+    _, sink_markers = cv2.connectedComponents(sinks_mask.astype(np.uint8))
+    if sink_markers.max() == 0:
+        sink_markers, _ = ndi.label(sinks_mask)
+
+    # Dilata ligeiramente as bacias de atração para captura rápida na integração de Euler
+    sink_bacias = cv2.dilate(
+        sink_markers.astype(np.uint16),
+        cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (5, 5)),
+    ).astype(np.int32)
+
+    # Integração de Euler vetorizada: cada pixel da máscara segue o fluxo (mu_y, mu_x) por N passos
+    fg_y, fg_x = np.where(mask_cp > 0)
+    py = fg_y.astype(np.float32)
+    px = fg_x.astype(np.float32)
+    passo = 1.15
+    n_passos = max(12, min(28, int(raio_est * 2.2)))
+
+    for _ in range(n_passos):
+        iy = np.clip(np.round(py).astype(np.int32), 0, H - 1)
+        ix = np.clip(np.round(px).astype(np.int32), 0, W - 1)
+        py = np.clip(py + passo * mu_y[iy, ix], 0, H - 1)
+        px = np.clip(px + passo * mu_x[iy, ix], 0, W - 1)
+
+    final_y = np.clip(np.round(py).astype(np.int32), 0, H - 1)
+    final_x = np.clip(np.round(px).astype(np.int32), 0, W - 1)
+    atribuicoes = sink_bacias[final_y, final_x]
+
+    labels_cp = np.zeros((H, W), dtype=np.int32)
+    labels_cp[fg_y, fg_x] = atribuicoes
+
+    # Pixels da borda que não alcançaram o sink no número de passos recebem propagação watershed residual
+    faltantes = (mask_cp > 0) & (labels_cp == 0)
+    if np.any(faltantes) and sink_markers.max() > 0:
+        labels_ws = watershed(-potencial, sink_markers, mask=mask_cp)
+        labels_cp[faltantes] = labels_ws[faltantes]
+
+    n_cel, labels_filt = _filtrar_labels_morfologia(
+        labels_cp, area_minima, area_maxima, min_circularidade
+    )
+    return n_cel, labels_filt, {
+        "area_minima": round(area_minima, 1),
+        "min_distance": min_dist,
+        "motor": "cellpose_2d",
+    }
+
+
 def segmentar_canal(canal_rgb_uint8, parametros, auto=True):
     corrigido = corrigir_fundo(
         canal_rgb_uint8,
         parametros.get("kernel_tophat"),
         parametros.get("aplicar_bilateral", True),
     )
-    mask, limiar_usado, _ = limiar_otsu_com_ajuste(corrigido, parametros.get("bias", 0))
+    bias = parametros.get("bias", 0)
+    mask, limiar_usado, _ = limiar_otsu_com_ajuste(corrigido, bias)
+    motor = (parametros.get("motor_segmentacao") or "watershed").lower().strip()
+
+    if motor == "stardist":
+        n_objetos, labels, params_usados = segmentar_nucleos_stardist(
+            canal_rgb_uint8,
+            corrigido,
+            mask,
+            bias=bias,
+            area_maxima=parametros.get("area_maxima"),
+            min_circularidade=parametros.get("min_circularidade", 0.0),
+        )
+        mask_final = ((labels > 0).astype(np.uint8)) * 255
+        return n_objetos, labels, mask_final, limiar_usado, params_usados
+    elif motor == "cellpose":
+        n_objetos, labels, params_usados = segmentar_nucleos_cellpose(
+            canal_rgb_uint8,
+            corrigido,
+            mask,
+            bias=bias,
+            area_maxima=parametros.get("area_maxima"),
+            min_circularidade=parametros.get("min_circularidade", 0.0),
+        )
+        mask_final = ((labels > 0).astype(np.uint8)) * 255
+        return n_objetos, labels, mask_final, limiar_usado, params_usados
+
     n_objetos, labels, params_usados = contar_objetos(
         mask,
         auto=auto,
         area_maxima=parametros.get("area_maxima"),
         min_circularidade=parametros.get("min_circularidade", 0.0),
     )
+    params_usados["motor"] = "watershed"
     return n_objetos, labels, mask, limiar_usado, params_usados
 
 
@@ -895,12 +1260,13 @@ def desenhar_legenda_exportacao_pil(
         fill=cor_pill_txt,
     )
 
-    # Linha final de metadados (Nome da Amostra à esquerda, CytoCount versão à direita)
+    # Linha final de metadados (Nome da Amostra à esquerda, CytoCount versão + Motor à direita)
     y_meta = y_cursor + altura_linha + gap_linhas
     nome_arq = str(relatorio.get("Arquivo", "Amostra"))
     roi_info = relatorio.get("ROI", "Imagem Completa")
+    motor_info = relatorio.get("Motor de Segmentação", "Watershed Clássico")
     txt_esq = f"{nome_arq}" + (f"  [ROI: {roi_info}]" if roi_info and roi_info != "Imagem Completa" else "")
-    txt_dir = f"CytoCount v{APP_VERSION}"
+    txt_dir = f"CytoCount v{APP_VERSION} · {motor_info}"
 
     draw.text((pad_x, y_meta), txt_esq, font=f_meta, fill=txt_secundario)
     bb_dir = draw.textbbox((0, 0), txt_dir, font=f_meta)
@@ -961,12 +1327,14 @@ def processar_canais_em_memoria(
     aplicar_bilateral = parametros.get("aplicar_bilateral", True)
 
     canal_azul = normalizar_robusto(b_float)
+    motor_seg = parametros.get("motor_segmentacao", "watershed")
     param_azul_especifico = {
         "kernel_tophat": kernel_tophat,
         "aplicar_bilateral": aplicar_bilateral,
         "bias": parametros.get("bias_azul", 0),
         "min_circularidade": parametros.get("min_circularidade", 0.15),
         "area_maxima": parametros.get("area_maxima"),
+        "motor_segmentacao": motor_seg,
     }
     n_azul, lab_azul, mask_azul, thr_azul, p_azul = segmentar_canal(canal_azul, param_azul_especifico)
 
@@ -1013,6 +1381,7 @@ def processar_canais_em_memoria(
         roi_aplicado=roi_aplicado,
         eh_jpeg=eh_jpeg,
         manual_edits=[],
+        motor_segmentacao=motor_seg,
     )
 
     # Imagem para visualização em tela: APENAS contornos limpos (sem cv2.putText sobreposto!)

@@ -74,6 +74,7 @@ const PARAMS_INICIAIS: Parametros = {
   min_circularidade: 0.15,
   area_maxima: null,
   formula_viabilidade: "Padrão Biológico (Vivas / (Vivas + Mortas))",
+  motor_segmentacao: "watershed",
   roi: null,
 };
 
@@ -315,6 +316,7 @@ export default function App() {
     parametros.min_circularidade,
     parametros.area_maxima,
     parametros.formula_viabilidade,
+    parametros.motor_segmentacao,
   ]);
 
   const handleAplicarROI = useCallback(
@@ -434,7 +436,10 @@ export default function App() {
     setProcessando(true);
     try {
       await limparSessaoBackend();
-      const demo = await carregarAmostraDemo(idioma);
+      const demo = await carregarAmostraDemo(
+        idioma,
+        parametros.motor_segmentacao ?? "watershed"
+      );
       if (demo.erro) {
         notificar(demo.erro, "erro");
       } else {
