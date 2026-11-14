@@ -997,12 +997,45 @@ def classificar_nucleos(
             sub_verde = mask_verde_bin[y0:y1, x0:x1]
             sub_amarelo = mask_amarela_bin[y0:y1, x0:x1]
 
-            frac_verde = float(sub_verde[sub_regiao].mean())
-            frac_amarela = float(sub_amarelo[sub_regiao].mean())
-            pos_verde = frac_verde >= FRACAO_MINIMA_VERDE
-            pos_amarelo = frac_amarela >= FRACAO_MINIMA_AMARELA
+            # 1. Medição de Calceína (Verde / Vivas):
+            # Calceína-AM é um fluoróforo que preenche o citoplasma e o corpo celular.
+            # Avaliamos o sinal sobre a célula completa (citoplasma + núcleo).
+            frac_verde_celula = float(sub_verde[sub_regiao].mean()) if area_regiao > 0 else 0.0
 
-            if pos_amarelo:
+            # 2. Medição de Iodeto de Propídio / PI (Amarelo / Mortas):
+            # PI é um intercalante de DNA que se acumula estritamente no NÚCLEO em células mortas.
+            # No citoplasma de células vivas com calceína intensa, existe sangramento espectral verde->vermelho
+            # e autofluorescência de fundo. Portanto, o sinal de PI para morte celular é estritamente NUCLEAR.
+            if area_nucleo > 0:
+                kernel_nuc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (3, 3))
+                mask_nuc_eval = cv2.dilate(sub_obj, kernel_nuc) > 0
+                frac_amarela_nuc = float(sub_amarelo[mask_nuc_eval].mean()) if mask_nuc_eval.sum() > 0 else 0.0
+                frac_verde_nuc = float(sub_verde[mask_nuc_eval].mean()) if mask_nuc_eval.sum() > 0 else 0.0
+            else:
+                frac_amarela_nuc = float(sub_amarelo[sub_regiao].mean())
+                frac_verde_nuc = 0.0
+
+            frac_verde = max(frac_verde_celula, frac_verde_nuc)
+            frac_amarela = frac_amarela_nuc
+
+            pos_verde = frac_verde >= FRACAO_MINIMA_VERDE
+            pos_amarelo = frac_amarela_nuc >= FRACAO_MINIMA_AMARELA
+
+            # Classificação biológica com desempate espectral robusto:
+            if pos_amarelo and pos_verde:
+                # Duplo-positiva: distingue sangramento espectral (calceína brilhante com cauda amarela)
+                # de morte celular verdadeira (PI nuclear dominante).
+                if frac_verde >= 0.30 and frac_verde > frac_amarela_nuc * 1.3:
+                    # Sinal citoplasmático verde é o fluoróforo primário dominante
+                    classe = "viavel"
+                    n_viaveis += 1
+                    labels_viaveis[y0:y1, x0:x1][mask_desenho] = label_id
+                else:
+                    # PI nuclear consolidado indica perda de integridade de membrana
+                    classe = "morta"
+                    n_mortas += 1
+                    labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
+            elif pos_amarelo:
                 classe = "morta"
                 n_mortas += 1
                 labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
