@@ -643,18 +643,36 @@ def classificar_nucleos(
 # LEGENDA EM IMAGEM EXPORTADA COM PIL/TRUETYPE (ACENTOS E IDIOMAS PT/EN/ES)
 # =========================================================================
 
-def _carregar_fonte_truetype(tamanho: int) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    candidatos = [
-        "segoeui.ttf",
-        "arial.ttf",
-        "calibri.ttf",
-        "DejaVuSans.ttf",
-        "C:\\Windows\\Fonts\\segoeui.ttf",
-        "C:\\Windows\\Fonts\\arial.ttf",
-        "C:\\Windows\\Fonts\\consola.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/System/Library/Fonts/Helvetica.ttc",
-    ]
+def _carregar_fonte_truetype(tamanho: int, negrito: bool = False, mono: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
+    if mono:
+        candidatos = [
+            "consolab.ttf" if negrito else "consola.ttf",
+            "C:\\Windows\\Fonts\\consolab.ttf" if negrito else "C:\\Windows\\Fonts\\consola.ttf",
+            "DejaVuSansMono-Bold.ttf" if negrito else "DejaVuSansMono.ttf",
+        ]
+    elif negrito:
+        candidatos = [
+            "segoeuib.ttf",
+            "arialbd.ttf",
+            "calibrib.ttf",
+            "C:\\Windows\\Fonts\\segoeuib.ttf",
+            "C:\\Windows\\Fonts\\arialbd.ttf",
+            "C:\\Windows\\Fonts\\calibrib.ttf",
+            "DejaVuSans-Bold.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
+        ]
+    else:
+        candidatos = [
+            "segoeui.ttf",
+            "arial.ttf",
+            "calibri.ttf",
+            "C:\\Windows\\Fonts\\segoeui.ttf",
+            "C:\\Windows\\Fonts\\arial.ttf",
+            "C:\\Windows\\Fonts\\calibri.ttf",
+            "DejaVuSans.ttf",
+            "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+        ]
     for c in candidatos:
         try:
             return ImageFont.truetype(c, tamanho)
@@ -671,143 +689,226 @@ def desenhar_legenda_exportacao_pil(
     tamanho_barra_um: Optional[float] = None,
     mostrar_legenda: bool = True,
     paleta_daltonismo: bool = False,
+    tema_fundo: str = "escuro",
 ) -> np.ndarray:
     """
-    Desenha legenda discreta com fundo semitransparente e suporte completo a Unicode/acentos
-    (usando PIL + TrueType) APENAS para a imagem exportada (nunca na tela interativa).
+    Renderiza barra de escala científica estilo Zeiss/ImageJ no canto inferior direito
+    e, quando `mostrar_legenda=True`, adiciona uma barra de rodapé científica externa
+    abaixo da imagem (nunca cobrindo as células nem cortando texto).
     """
     img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
     H, W = img_rgb.shape[:2]
     pil_img = Image.fromarray(img_rgb).convert("RGBA")
-    overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(overlay)
 
-    escala_fonte = max(12, min(28, int(min(W, H) * 0.022)))
-    fonte_titulo = _carregar_fonte_truetype(escala_fonte + 2)
-    fonte_item = _carregar_fonte_truetype(escala_fonte)
-    fonte_rodape = _carregar_fonte_truetype(max(10, escala_fonte - 3))
+    # 1. Barra de escala física (µm) refinada no canto inferior direito
+    if um_por_pixel and um_por_pixel > 0:
+        overlay = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+        draw_ov = ImageDraw.Draw(overlay)
 
+        alvo_um = tamanho_barra_um if (tamanho_barra_um and tamanho_barra_um > 0) else 50.0
+        largura_px = int(round(alvo_um / um_por_pixel))
+        if largura_px > W * 0.32:
+            alvo_um = 20.0
+            largura_px = max(24, int(round(alvo_um / um_por_pixel)))
+        largura_px = max(24, min(int(W * 0.38), largura_px))
+
+        tam_fonte_escala = max(11, min(22, int(min(W, H) * 0.022)))
+        fonte_escala = _carregar_fonte_truetype(tam_fonte_escala, negrito=True)
+
+        txt_escala = f"{int(alvo_um) if alvo_um == int(alvo_um) else alvo_um} \u03bcm"
+        tb = draw_ov.textbbox((0, 0), txt_escala, font=fonte_escala)
+        tw = tb[2] - tb[0]
+        th = tb[3] - tb[1]
+
+        margem = max(14, int(min(W, H) * 0.025))
+        espessura_barra = max(3, min(6, int(min(W, H) * 0.006)))
+        tick_h = espessura_barra + 4
+
+        bx1 = W - margem
+        bx0 = bx1 - largura_px
+        by1 = H - margem
+        by0 = by1 - espessura_barra
+
+        pad_x = 10
+        pad_y = 7
+        caixa_x0 = min(bx0, bx0 + (largura_px - tw) // 2) - pad_x
+        caixa_x1 = max(bx1, bx0 + (largura_px + tw) // 2) + pad_x
+        caixa_y0 = by0 - th - pad_y * 2
+        caixa_y1 = by1 + pad_y
+
+        draw_ov.rounded_rectangle(
+            [caixa_x0, caixa_y0, caixa_x1, caixa_y1],
+            radius=6,
+            fill=(8, 13, 16, 175),
+            outline=(255, 255, 255, 45),
+            width=1,
+        )
+        # Barra horizontal com terminadores verticais sutis (estilo retículo micrométrico)
+        draw_ov.rectangle([bx0, by0, bx1, by1], fill=(255, 255, 255, 245))
+        draw_ov.rectangle([bx0, by0 - 2, bx0 + 2, by1 + 2], fill=(255, 255, 255, 245))
+        draw_ov.rectangle([bx1 - 2, by0 - 2, bx1, by1 + 2], fill=(255, 255, 255, 245))
+
+        draw_ov.text(
+            (bx0 + (largura_px - tw) // 2, by0 - th - pad_y - 1),
+            txt_escala,
+            font=fonte_escala,
+            fill=(248, 250, 252, 255),
+        )
+        pil_img = Image.alpha_composite(pil_img, overlay)
+
+    img_base_rgb = pil_img.convert("RGB")
+    if not mostrar_legenda:
+        return cv2.cvtColor(np.array(img_base_rgb), cv2.COLOR_RGB2BGR)
+
+    # 2. Barra de Rodapé Científica Externa (zero oclusão de células, tipografia limpa e sem cortes)
     detectados = int(relatorio.get("Detectados", relatorio.get("Total (Azul)", 0)))
     vivas = int(relatorio.get("Viáveis (Verde)", 0))
     mortas = int(relatorio.get("Mortas (Amarelo)", 0))
     indet = int(relatorio.get("Indeterminadas", max(0, detectados - vivas - mortas)))
+    pct_viv = float(relatorio.get("Pct Viáveis (%)", (vivas / detectados * 100.0) if detectados > 0 else 0.0))
+    pct_mor = float(relatorio.get("Pct Mortas (%)", (mortas / detectados * 100.0) if detectados > 0 else 0.0))
+    pct_ind = float(relatorio.get("Pct Indeterminadas (%)", (indet / detectados * 100.0) if detectados > 0 else 0.0))
     viab = float(relatorio.get("Viabilidade (%)", 0.0))
     ic_lo = float(relatorio.get("IC 95% Baixo", 0.0))
     ic_hi = float(relatorio.get("IC 95% Alto", 0.0))
-
     base_calc = int(relatorio.get("Base de Cálculo", vivas + mortas))
+
     viab_fmt = formatar_viabilidade_padrao(viab, ic_lo, ic_hi, idioma, base_calc)
     det_fmt = formatar_inteiro_locale(detectados, idioma)
-    viv_fmt = formatar_inteiro_locale(vivas, idioma)
-    mor_fmt = formatar_inteiro_locale(mortas, idioma)
-    ind_fmt = formatar_inteiro_locale(indet, idioma)
+    viv_fmt = f"{formatar_inteiro_locale(vivas, idioma)} ({formatar_decimal_locale(pct_viv, idioma, 1)}%)"
+    mor_fmt = f"{formatar_inteiro_locale(mortas, idioma)} ({formatar_decimal_locale(pct_mor, idioma, 1)}%)"
+    ind_fmt = f"{formatar_inteiro_locale(indet, idioma)} ({formatar_decimal_locale(pct_ind, idioma, 1)}%)"
+
+    eh_claro = tema_fundo == "claro"
+    bg_footer = (248, 250, 252) if eh_claro else (11, 18, 21)
+    borda_topo = (203, 213, 225) if eh_claro else (30, 45, 52)
+    txt_primario = (15, 23, 42) if eh_claro else (238, 244, 248)
+    txt_secundario = (100, 116, 139) if eh_claro else (142, 163, 176)
+
+    cor_azul = (37, 99, 235) if eh_claro else (96, 165, 250)
+    cor_verde = ((0, 150, 130) if eh_claro else (0, 230, 180)) if paleta_daltonismo else ((22, 163, 74) if eh_claro else (52, 211, 153))
+    cor_amarela = ((210, 50, 100) if eh_claro else (255, 90, 140)) if paleta_daltonismo else ((217, 119, 6) if eh_claro else (251, 191, 36))
+    cor_indet = (100, 116, 139) if eh_claro else (148, 163, 184)
 
     if idioma == "en":
-        linhas = [
-            (f"Detected: {det_fmt}", (96, 165, 250, 255)),
-            (f"Viable: {viv_fmt}", (52, 211, 153, 255) if not paleta_daltonismo else (0, 230, 180, 255)),
-            (f"Dead: {mor_fmt}", (251, 191, 36, 255) if not paleta_daltonismo else (255, 90, 140, 255)),
-            (f"Undetermined: {ind_fmt}", (156, 163, 175, 255)),
-            (f"Viability: {viab_fmt}", (240, 253, 244, 255)),
+        metricas = [
+            ("Detected:", det_fmt, cor_azul),
+            ("Live:", viv_fmt, cor_verde),
+            ("Dead:", mor_fmt, cor_amarela),
+            ("Undet.:", ind_fmt, cor_indet),
         ]
+        lbl_viab = f"Viability: {viab_fmt}"
     elif idioma == "es":
-        linhas = [
-            (f"Detectados: {det_fmt}", (96, 165, 250, 255)),
-            (f"Viables: {viv_fmt}", (52, 211, 153, 255) if not paleta_daltonismo else (0, 230, 180, 255)),
-            (f"Muertas: {mor_fmt}", (251, 191, 36, 255) if not paleta_daltonismo else (255, 90, 140, 255)),
-            (f"Indeterminadas: {ind_fmt}", (156, 163, 175, 255)),
-            (f"Viabilidad: {viab_fmt}", (240, 253, 244, 255)),
+        metricas = [
+            ("Detectados:", det_fmt, cor_azul),
+            ("Vivas:", viv_fmt, cor_verde),
+            ("Muertas:", mor_fmt, cor_amarela),
+            ("Indet.:", ind_fmt, cor_indet),
         ]
+        lbl_viab = f"Viabilidad: {viab_fmt}"
     else:
-        linhas = [
-            (f"Detectados: {det_fmt}", (96, 165, 250, 255)),
-            (f"Viáveis: {viv_fmt}", (52, 211, 153, 255) if not paleta_daltonismo else (0, 230, 180, 255)),
-            (f"Mortas: {mor_fmt}", (251, 191, 36, 255) if not paleta_daltonismo else (255, 90, 140, 255)),
-            (f"Indeterminadas: {ind_fmt}", (156, 163, 175, 255)),
-            (f"Viabilidade: {viab_fmt}", (240, 253, 244, 255)),
+        metricas = [
+            ("Detectados:", det_fmt, cor_azul),
+            ("Vivas:", viv_fmt, cor_verde),
+            ("Mortas:", mor_fmt, cor_amarela),
+            ("Indet.:", ind_fmt, cor_indet),
         ]
+        lbl_viab = f"Viabilidade: {viab_fmt}"
 
-    if mostrar_legenda:
-        pad = max(10, int(escala_fonte * 0.65))
-        espaco_linha = int(escala_fonte * 1.45)
-        largura_max = 0
-        rodape_txt = f"CytoCount v{APP_VERSION} · {relatorio.get('Arquivo', '')}"
-        for txt, _ in linhas:
-            bbox = draw.textbbox((0, 0), txt, font=fonte_item)
-            largura_max = max(largura_max, bbox[2] - bbox[0])
-        bbox_rod = draw.textbbox((0, 0), rodape_txt, font=fonte_rodape)
-        largura_max = max(largura_max, bbox_rod[2] - bbox_rod[0])
+    # Escala tipográfica adaptativa à largura da imagem (garante zero corte em qualquer resolução)
+    tam_base = max(11, min(20, int(W * 0.016)))
+    f_regular = _carregar_fonte_truetype(tam_base, negrito=False)
+    f_bold = _carregar_fonte_truetype(tam_base, negrito=True)
+    f_meta = _carregar_fonte_truetype(max(10, tam_base - 2), negrito=False, mono=True)
 
-        box_w = largura_max + pad * 2 + 16
-        box_h = len(linhas) * espaco_linha + int(escala_fonte * 1.3) + pad * 2
-        x0, y0 = 16, 16
+    pad_x = max(14, int(W * 0.02))
+    pad_y = max(10, int(tam_base * 0.75))
+    gap_linhas = max(6, int(tam_base * 0.45))
 
-        draw.rounded_rectangle(
-            [x0, y0, x0 + box_w, y0 + box_h],
-            radius=8,
-            fill=(11, 18, 21, 205),
-            outline=(52, 211, 153, 110),
-            width=1,
+    # Calcula altura do rodapé (2 linhas organizadas: Linha 1 = Métricas + Viabilidade; Linha 2 = Arquivo + Versão)
+    # Se a imagem for estreita (< 620px), divide métricas e viabilidade em linhas separadas para nunca cortar
+    empilhar_viab = W < 680
+    n_linhas_rodape = 3 if empilhar_viab else 2
+    altura_linha = int(tam_base * 1.45)
+    footer_h = pad_y * 2 + n_linhas_rodape * altura_linha + (n_linhas_rodape - 1) * gap_linhas
+
+    canvas = Image.new("RGB", (W, H + footer_h), bg_footer)
+    canvas.paste(img_base_rgb, (0, 0))
+    draw = ImageDraw.Draw(canvas)
+
+    # Linha divisória sutil entre a imagem de microscopia e o rodapé científico
+    draw.line([(0, H), (W, H)], fill=borda_topo, width=2)
+
+    y_cursor = H + pad_y
+    x_cursor = pad_x
+    r_dot = max(3, tam_base // 4)
+
+    # Desenha os itens de contagem com ponto colorido alinhado ao centro vertical da linha
+    for rotulo, valor, cor_item in metricas:
+        cy_dot = y_cursor + altura_linha // 2
+        draw.ellipse(
+            [x_cursor, cy_dot - r_dot, x_cursor + r_dot * 2, cy_dot + r_dot],
+            fill=cor_item,
         )
+        x_cursor += r_dot * 2 + 6
 
-        cy = y0 + pad
-        for txt, cor_rgba in linhas:
-            # Pequeno marcador colorido
-            r_dot = max(3, escala_fonte // 4)
-            draw.ellipse(
-                [x0 + pad, cy + escala_fonte // 2 - r_dot + 2, x0 + pad + r_dot * 2, cy + escala_fonte // 2 + r_dot + 2],
-                fill=cor_rgba,
-            )
-            draw.text(
-                (x0 + pad + r_dot * 2 + 8, cy),
-                txt,
-                font=fonte_titulo if "Viab" in txt else fonte_item,
-                fill=(240, 246, 252, 255),
-            )
-            cy += espaco_linha
+        draw.text((x_cursor, y_cursor), rotulo, font=f_regular, fill=txt_secundario)
+        bb_rot = draw.textbbox((0, 0), rotulo, font=f_regular)
+        x_cursor += (bb_rot[2] - bb_rot[0]) + 4
 
-        draw.text(
-            (x0 + pad, cy + 2),
-            rodape_txt,
-            font=fonte_rodape,
-            fill=(148, 163, 184, 220),
-        )
+        draw.text((x_cursor, y_cursor), valor, font=f_bold, fill=txt_primario)
+        bb_val = draw.textbbox((0, 0), valor, font=f_bold)
+        x_cursor += (bb_val[2] - bb_val[0]) + max(14, int(W * 0.022))
 
-    # Barra de escala física (µm) se informada calibração
-    if um_por_pixel and um_por_pixel > 0:
-        alvo_um = tamanho_barra_um if (tamanho_barra_um and tamanho_barra_um > 0) else 50.0
-        largura_px = int(round(alvo_um / um_por_pixel))
-        # Ajusta automaticamente se a barra ficar maior que 35% da largura da imagem
-        if largura_px > W * 0.35:
-            alvo_um = 20.0
-            largura_px = max(20, int(round(alvo_um / um_por_pixel)))
-        largura_px = max(20, min(int(W * 0.45), largura_px))
+    # Pill destacado de Viabilidade (IC 95% de Wilson)
+    bb_viab = draw.textbbox((0, 0), lbl_viab, font=f_bold)
+    vw = bb_viab[2] - bb_viab[0]
+    vh = bb_viab[3] - bb_viab[1]
+    pill_pad_x = 10
+    pill_pad_y = 4
 
-        bx1 = W - 24
-        bx0 = bx1 - largura_px
-        by1 = H - 24
-        by0 = by1 - max(5, escala_fonte // 3)
+    if empilhar_viab:
+        y_cursor += altura_linha + gap_linhas
+        vx0 = pad_x
+    else:
+        vx0 = max(x_cursor, W - pad_x - vw - pill_pad_x * 2)
 
-        txt_escala = f"{int(alvo_um) if alvo_um == int(alvo_um) else alvo_um} \u03bcm"
-        tb = draw.textbbox((0, 0), txt_escala, font=fonte_item)
-        tw = tb[2] - tb[0]
-        th = tb[3] - tb[1]
+    vy0 = y_cursor - 1
+    vx1 = min(W - pad_x, vx0 + vw + pill_pad_x * 2)
+    vy1 = vy0 + altura_linha + 2
 
-        draw.rounded_rectangle(
-            [bx0 - 12, by0 - th - 14, bx1 + 12, by1 + 10],
-            radius=6,
-            fill=(11, 18, 21, 200),
-        )
-        draw.rectangle([bx0, by0, bx1, by1], fill=(255, 255, 255, 255))
-        draw.text(
-            (bx0 + (largura_px - tw) // 2, by0 - th - 8),
-            txt_escala,
-            font=fonte_item,
-            fill=(255, 255, 255, 255),
-        )
+    cor_pill_bg = (220, 252, 231) if eh_claro else (14, 38, 31)
+    cor_pill_borda = (22, 163, 74) if eh_claro else (45, 160, 115)
+    cor_pill_txt = (21, 128, 61) if eh_claro else (75, 240, 160)
 
-    combinada = Image.alpha_composite(pil_img, overlay).convert("RGB")
-    return cv2.cvtColor(np.array(combinada), cv2.COLOR_RGB2BGR)
+    draw.rounded_rectangle(
+        [vx0, vy0, vx1, vy1],
+        radius=6,
+        fill=cor_pill_bg,
+        outline=cor_pill_borda,
+        width=1,
+    )
+    draw.text(
+        (vx0 + pill_pad_x, y_cursor),
+        lbl_viab,
+        font=f_bold,
+        fill=cor_pill_txt,
+    )
+
+    # Linha final de metadados (Nome da Amostra à esquerda, CytoCount versão à direita)
+    y_meta = y_cursor + altura_linha + gap_linhas
+    nome_arq = str(relatorio.get("Arquivo", "Amostra"))
+    roi_info = relatorio.get("ROI", "Imagem Completa")
+    txt_esq = f"{nome_arq}" + (f"  [ROI: {roi_info}]" if roi_info and roi_info != "Imagem Completa" else "")
+    txt_dir = f"CytoCount v{APP_VERSION}"
+
+    draw.text((pad_x, y_meta), txt_esq, font=f_meta, fill=txt_secundario)
+    bb_dir = draw.textbbox((0, 0), txt_dir, font=f_meta)
+    w_dir = bb_dir[2] - bb_dir[0]
+    if W - pad_x - w_dir > pad_x + 180:
+        draw.text((W - pad_x - w_dir, y_meta), txt_dir, font=f_meta, fill=txt_secundario)
+
+    return cv2.cvtColor(np.array(canvas), cv2.COLOR_RGB2BGR)
 
 
 # =========================================================================
@@ -967,6 +1068,7 @@ def gerar_figura_publicacao(
     dpi: int = 300,
     idioma: str = "pt",
     mostrar_contornos: bool = True,
+    mostrar_legenda: bool = True,
     tema_fundo: str = "escuro",
     paleta_daltonismo: bool = False,
     lado_a_lado: bool = False,
@@ -975,7 +1077,8 @@ def gerar_figura_publicacao(
 ) -> tuple[bytes, str]:
     """
     Gera figura científica pronta para publicação com DPI embutido (300 ou 600 DPI),
-    barra de escala em micrômetros, paleta opcional para daltonismo e painel lado a lado.
+    barra de escala em micrômetros, paleta opcional para daltonismo, rodapé científico
+    externo (sem cobrir células) e opção de painel lado a lado.
     Retorna (bytes_arquivo, mime_type).
     """
     dpi_val = 600 if int(dpi) >= 600 else 300
@@ -986,17 +1089,18 @@ def gerar_figura_publicacao(
     else:
         proc_bgr = orig_bgr.copy()
 
-    proc_com_legenda_bgr = desenhar_legenda_exportacao_pil(
-        proc_bgr,
-        relatorio,
-        idioma=idioma,
-        um_por_pixel=um_por_pixel,
-        tamanho_barra_um=tamanho_barra_um,
-        mostrar_legenda=True,
-        paleta_daltonismo=paleta_daltonismo,
-    )
-
     if lado_a_lado:
+        # Primeiro aplica apenas a barra de escala na imagem processada
+        proc_escala_bgr = desenhar_legenda_exportacao_pil(
+            proc_bgr,
+            relatorio,
+            idioma=idioma,
+            um_por_pixel=um_por_pixel,
+            tamanho_barra_um=tamanho_barra_um,
+            mostrar_legenda=False,
+            paleta_daltonismo=paleta_daltonismo,
+            tema_fundo=tema_fundo,
+        )
         H, W = orig_bgr.shape[:2]
         sep_w = max(8, W // 80)
         cor_fundo = (248, 250, 252) if tema_fundo == "claro" else (11, 18, 21)
@@ -1005,12 +1109,12 @@ def gerar_figura_publicacao(
 
         painel = np.full((H + topo_h, W * 2 + sep_w, 3), cor_fundo, dtype=np.uint8)
         painel[topo_h : topo_h + H, 0:W] = orig_bgr
-        painel[topo_h : topo_h + H, W + sep_w : W * 2 + sep_w] = proc_com_legenda_bgr
+        painel[topo_h : topo_h + H, W + sep_w : W * 2 + sep_w] = proc_escala_bgr
 
         pil_painel = Image.fromarray(cv2.cvtColor(painel, cv2.COLOR_BGR2RGB))
         draw = ImageDraw.Draw(pil_painel)
-        fonte_lbl = _carregar_fonte_truetype(max(14, topo_h // 2))
-        lbl_orig = "A · Original" if idioma != "en" else "A · Original"
+        fonte_lbl = _carregar_fonte_truetype(max(14, topo_h // 2), negrito=True)
+        lbl_orig = "A · Original"
         lbl_proc = (
             "B · Processed"
             if idioma == "en"
@@ -1018,8 +1122,30 @@ def gerar_figura_publicacao(
         )
         draw.text((16, (topo_h - 18) // 2), lbl_orig, font=fonte_lbl, fill=cor_texto)
         draw.text((W + sep_w + 16, (topo_h - 18) // 2), lbl_proc, font=fonte_lbl, fill=cor_texto)
-        pil_final = pil_painel
+
+        painel_bgr = cv2.cvtColor(np.array(pil_painel), cv2.COLOR_RGB2BGR)
+        if mostrar_legenda:
+            painel_bgr = desenhar_legenda_exportacao_pil(
+                painel_bgr,
+                relatorio,
+                idioma=idioma,
+                um_por_pixel=None,
+                mostrar_legenda=True,
+                paleta_daltonismo=paleta_daltonismo,
+                tema_fundo=tema_fundo,
+            )
+        pil_final = Image.fromarray(cv2.cvtColor(painel_bgr, cv2.COLOR_BGR2RGB))
     else:
+        proc_com_legenda_bgr = desenhar_legenda_exportacao_pil(
+            proc_bgr,
+            relatorio,
+            idioma=idioma,
+            um_por_pixel=um_por_pixel,
+            tamanho_barra_um=tamanho_barra_um,
+            mostrar_legenda=mostrar_legenda,
+            paleta_daltonismo=paleta_daltonismo,
+            tema_fundo=tema_fundo,
+        )
         pil_final = Image.fromarray(cv2.cvtColor(proc_com_legenda_bgr, cv2.COLOR_BGR2RGB))
 
     fmt = formato.lower().strip(".")

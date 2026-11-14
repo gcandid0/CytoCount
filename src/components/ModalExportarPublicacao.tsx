@@ -24,6 +24,7 @@ export default function ModalExportarPublicacao({
   const [dpi, setDpi] = useState<300 | 600>(300);
   const [idiomaFig, setIdiomaFig] = useState<Idioma>(idiomaInicial);
   const [mostrarContornos, setMostrarContornos] = useState(true);
+  const [mostrarLegenda, setMostrarLegenda] = useState(true);
   const [temaFundo, setTemaFundo] = useState<"escuro" | "claro">("escuro");
   const [paletaDaltonismo, setPaletaDaltonismo] = useState(false);
   const [ladoALado, setLadoALado] = useState(false);
@@ -45,6 +46,7 @@ export default function ModalExportarPublicacao({
         dpi,
         idioma: idiomaFig,
         mostrar_contornos: mostrarContornos,
+        mostrar_legenda: mostrarLegenda,
         tema_fundo: temaFundo,
         paleta_daltonismo: paletaDaltonismo,
         lado_a_lado: ladoALado,
@@ -113,8 +115,7 @@ export default function ModalExportarPublicacao({
       }
     >
       <p className="modal-lead-text">
-        A figura será exportada com metadados físicos de resolução (DPI), legenda TrueType
-        acentuada com <b>IC 95% de Wilson</b> e barra de escala micrométrica calibrada.
+        A figura será exportada com metadados físicos de resolução (DPI), barra inferior dedicada de resumo estatístico TrueType com <b>IC 95% de Wilson</b> (sem cobrir nenhuma célula da imagem) e retículo de escala micrométrica calibrado.
       </p>
 
       <div className="pub-form-grid">
@@ -211,6 +212,20 @@ export default function ModalExportarPublicacao({
       </div>
 
       <div className="pub-toggles-box">
+        <label className="field field-row">
+          <span className="field-label">
+            Incluir barra inferior científica com resumo estatístico e IC 95% (sem cobrir células)
+          </span>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={mostrarLegenda}
+              onChange={(e) => setMostrarLegenda(e.target.checked)}
+            />
+            <span className="switch-track"></span>
+          </span>
+        </label>
+
         <label className="field field-row">
           <span className="field-label">Exibir contornos de segmentação nas células</span>
           <span className="switch">

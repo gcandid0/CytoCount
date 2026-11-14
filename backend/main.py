@@ -675,6 +675,7 @@ async def exportar_figura_publicacao(
     dpi = int(payload.get("dpi", 300))
     idioma = str(payload.get("idioma", "pt"))
     mostrar_contornos = bool(payload.get("mostrar_contornos", True))
+    mostrar_legenda = bool(payload.get("mostrar_legenda", True))
     tema_fundo = str(payload.get("tema_fundo", "escuro"))
     paleta_daltonismo = bool(payload.get("paleta_daltonismo", False))
     lado_a_lado = bool(payload.get("lado_a_lado", False))
@@ -693,6 +694,7 @@ async def exportar_figura_publicacao(
             dpi=dpi,
             idioma=idioma,
             mostrar_contornos=mostrar_contornos,
+            mostrar_legenda=mostrar_legenda,
             tema_fundo=tema_fundo,
             paleta_daltonismo=paleta_daltonismo,
             lado_a_lado=lado_a_lado,

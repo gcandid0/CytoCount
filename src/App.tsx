@@ -50,6 +50,7 @@ import {
   CheckIcon,
   ChevronDownIcon,
   ChevronRightIcon,
+  CopyIcon,
   DownloadIcon,
   FileCodeIcon,
   FileSpreadsheetIcon,
@@ -553,6 +554,59 @@ export default function App() {
       if (salvo) notificar(`${t.toast_saved_at} ${salvo}`, "sucesso");
     } catch (e) {
       notificar(`Erro ao exportar CSV: ${e}`, "erro");
+    }
+  };
+
+  const handleCopiarTabelaConsolidada = async () => {
+    if (resultadosValidos.length === 0) return;
+    try {
+      const headers = [
+        "Arquivo",
+        "Detectados",
+        "Vivas",
+        "Pct_Vivas(%)",
+        "Mortas",
+        "Pct_Mortas(%)",
+        "Indeterminadas",
+        "Pct_Indet(%)",
+        "Viabilidade(%)",
+        "IC95_Wilson_Baixo",
+        "IC95_Wilson_Alto",
+        "ROI",
+      ];
+      const linhas = resultadosValidos.map((r) => {
+        const rel = r.relatorio;
+        const det = rel.Detectados ?? rel["Total (Azul)"] ?? 0;
+        const viv = rel["Viáveis (Verde)"] ?? 0;
+        const mor = rel["Mortas (Amarelo)"] ?? 0;
+        const ind = rel.Indeterminadas ?? Math.max(0, det - viv - mor);
+        return [
+          rel.Arquivo,
+          det,
+          viv,
+          rel["Pct Viáveis (%)"] ?? 0,
+          mor,
+          rel["Pct Mortas (%)"] ?? 0,
+          ind,
+          rel["Pct Indeterminadas (%)"] ?? 0,
+          rel["Viabilidade (%)"] ?? 0,
+          rel["IC 95% Baixo"] ?? 0,
+          rel["IC 95% Alto"] ?? 0,
+          rel.ROI ?? "Completa",
+        ].join("\t");
+      });
+      const tsv = [headers.join("\t"), ...linhas].join("\n");
+      await navigator.clipboard.writeText(tsv);
+      notificar(
+        idioma === "en"
+          ? "Table copied to clipboard (ready for Excel / Prism)!"
+          : idioma === "es"
+          ? "¡Tabla copiada al portapapeles (lista para Excel / Prism)!"
+          : "Tabela copiada para a área de transferência (pronta para colar no Excel / Prism)!",
+        "sucesso"
+      );
+    } catch (e) {
+      notificar(`Erro ao copiar tabela: ${e}`, "erro");
     }
   };
 
@@ -1400,6 +1454,21 @@ export default function App() {
                     <p className="report-sub">{t.report_sub}</p>
                   </div>
                   <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={handleCopiarTabelaConsolidada}
+                      title="Copiar tabela em formato TSV para colar direto no Excel, Origin ou GraphPad Prism"
+                    >
+                      <CopyIcon size={15} />
+                      <span>
+                        {idioma === "en"
+                          ? "Copy Table"
+                          : idioma === "es"
+                          ? "Copiar Tabla"
+                          : "Copiar Tabela"}
+                      </span>
+                    </button>
                     <button
                       type="button"
                       className="btn-secondary"
