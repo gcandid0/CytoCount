@@ -34,11 +34,13 @@ export function formatarPercentual(
 }
 
 export function wilson(vivas: number, n: number, z = 1.96): [number, number] {
-  if (n <= 0) return [0, 0];
-  const p = vivas / n;
-  const d = 1 + (z * z) / n;
-  const c = p + (z * z) / (2 * n);
-  const termo = (p * (1 - p)) / n + (z * z) / (4 * n * n);
+  const v = Math.round(Number(vivas) || 0);
+  const total = Math.round(Number(n) || 0);
+  if (total <= 0) return [0, 0];
+  const p = v / total;
+  const d = 1 + (z * z) / total;
+  const c = p + (z * z) / (2 * total);
+  const termo = (p * (1 - p)) / total + (z * z) / (4 * total * total);
   const m = z * Math.sqrt(Math.max(0, termo));
   const low = Math.max(0, ((c - m) / d) * 100);
   const high = Math.min(100, ((c + m) / d) * 100);
@@ -49,8 +51,10 @@ export function formatarViabilidadeIC(
   viabilidade: number,
   icBaixo: number,
   icAlto: number,
-  idioma: Idioma
+  idioma: Idioma,
+  baseCalculo = 1
 ): string {
+  if (baseCalculo <= 0) return "\u2014";
   const vStr = formatarDecimal(viabilidade, idioma, 1);
   const loStr = formatarDecimal(icBaixo, idioma, 1);
   const hiStr = formatarDecimal(icAlto, idioma, 1);
@@ -68,13 +72,22 @@ export function formatarViabilidadeDeContagem(
   icAlto: number;
   formatado: string;
 } {
-  const viabilidade =
-    baseCalculo > 0 ? Number(Math.min(100, (vivas / baseCalculo) * 100).toFixed(1)) : 0;
-  const [icBaixo, icAlto] = wilson(vivas, baseCalculo);
+  const total = Math.round(Number(baseCalculo) || 0);
+  if (total <= 0) {
+    return {
+      viabilidade: 0,
+      icBaixo: 0,
+      icAlto: 0,
+      formatado: "\u2014",
+    };
+  }
+  const v = Math.round(Number(vivas) || 0);
+  const viabilidade = Number(Math.min(100, (v / total) * 100).toFixed(1));
+  const [icBaixo, icAlto] = wilson(v, total);
   return {
     viabilidade,
     icBaixo,
     icAlto,
-    formatado: formatarViabilidadeIC(viabilidade, icBaixo, icAlto, idioma),
+    formatado: formatarViabilidadeIC(viabilidade, icBaixo, icAlto, idioma, total),
   };
 }

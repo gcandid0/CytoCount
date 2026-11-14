@@ -616,7 +616,7 @@ export default function NavegadorResultados({
                 <button
                   type="button"
                   disabled={reprocessandoROI}
-                  className={`zoom-btn roi-btn${modoROI ? " active" : ""}`}
+                  className={`btn btn-secondary btn-sm roi-btn${modoROI ? " active" : ""}`}
                   onClick={() => {
                     const proximo = !modoROI;
                     setModoROI(proximo);
@@ -742,7 +742,7 @@ export default function NavegadorResultados({
             <div className="fiji-export-group">
               <button
                 type="button"
-                className="zoom-btn fiji-btn"
+                className="btn btn-secondary btn-sm fiji-btn"
                 onClick={exportarImageJCSV}
                 title="Salvar tabela de resultados compatível com ImageJ/Fiji (X, Y, Area, Mean, Class)"
               >
@@ -751,7 +751,7 @@ export default function NavegadorResultados({
               </button>
               <button
                 type="button"
-                className="zoom-btn fiji-btn"
+                className="btn btn-secondary btn-sm fiji-btn"
                 onClick={exportarMacroFiji}
                 title="Salvar Macro .ijm que desenha todas as ROIs no Fiji/ImageJ"
               >

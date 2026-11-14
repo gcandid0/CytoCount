@@ -20,6 +20,36 @@ export async function obterApiBase(): Promise<string> {
   return resolvedApiBase;
 }
 
+export async function obterBackendPort(): Promise<number> {
+  try {
+    return await invoke<number>("get_backend_port");
+  } catch {
+    return 8756;
+  }
+}
+
+export async function reiniciarBackendMotor(): Promise<string> {
+  urlResolvida = false;
+  try {
+    const novaUrl = await invoke<string>("reiniciar_backend");
+    if (novaUrl && novaUrl.startsWith("http")) {
+      resolvedApiBase = novaUrl;
+      urlResolvida = true;
+    }
+    return resolvedApiBase;
+  } catch (err) {
+    throw new Error(String(err));
+  }
+}
+
+export async function abrirPastaLogs(): Promise<void> {
+  try {
+    await invoke("abrir_pasta_logs");
+  } catch (err) {
+    console.error("Falha ao abrir pasta de logs:", err);
+  }
+}
+
 export interface DiagnosticoBackend {
   logs: string[];
   logPath: string;
@@ -237,9 +267,12 @@ export async function aguardarBackend(
     try {
       const ctrl = new AbortController();
       const timer = setTimeout(() => ctrl.abort(), 1200);
-      const r = await fetch(`${base}/health`, { signal: ctrl.signal });
+      const r = await fetch(`${base}/api/health`, { signal: ctrl.signal });
       clearTimeout(timer);
-      if (r.ok) return true;
+      if (r.ok) {
+        const data = await r.json().catch(() => null);
+        if (data && data.status === "ok") return true;
+      }
     } catch {
       // Ainda subindo
     }
@@ -271,13 +304,14 @@ export async function processarImagem(
   }
   fd.append("idioma", idioma);
 
-  const resp = await fetch(`${base}/process`, {
+  const resp = await fetch(`${base}/api/process`, {
     method: "POST",
     body: fd,
     signal,
   });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao processar ${arquivo.name}`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao processar ${arquivo.name}`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -306,13 +340,14 @@ export async function reprocessarAmostra(
   }
   fd.append("idioma", idioma);
 
-  const resp = await fetch(`${base}/reprocess/${jobId}`, {
+  const resp = await fetch(`${base}/api/reprocess/${jobId}`, {
     method: "POST",
     body: fd,
     signal,
   });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao reprocessar amostra`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao reprocessar amostra`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -327,7 +362,7 @@ export async function atualizarCelulasManual(
   idioma: Idioma = "pt"
 ): Promise<Partial<ResultadoProcessamento>> {
   const base = await obterApiBase();
-  const resp = await fetch(`${base}/update-cells/${jobId}`, {
+  const resp = await fetch(`${base}/api/update-cells/${jobId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -338,7 +373,8 @@ export async function atualizarCelulasManual(
     }),
   });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao atualizar células manualmente`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao atualizar células manualmente`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -351,9 +387,10 @@ export async function carregarAmostraDemo(
   const base = await obterApiBase();
   const fd = new FormData();
   fd.append("idioma", idioma);
-  const resp = await fetch(`${base}/sample-demo`, { method: "POST", body: fd });
+  const resp = await fetch(`${base}/api/sample-demo`, { method: "POST", body: fd });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao carregar imagem de exemplo`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao carregar imagem de exemplo`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -389,9 +426,10 @@ export async function mesclarCanaisAPI(opcoes: {
   fd.append("formula_viabilidade", opcoes.parametros.formula_viabilidade);
   fd.append("idioma", opcoes.idioma);
 
-  const resp = await fetch(`${base}/merge-channels`, { method: "POST", body: fd });
+  const resp = await fetch(`${base}/api/merge-channels`, { method: "POST", body: fd });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao mesclar canais`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao mesclar canais`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -421,13 +459,14 @@ export async function exportarFiguraPublicacaoAPI(
   erro?: string;
 }> {
   const base = await obterApiBase();
-  const resp = await fetch(`${base}/export-publication/${jobId}`, {
+  const resp = await fetch(`${base}/api/export-publication/${jobId}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(opcoes),
   });
   if (!resp.ok) {
-    const msg = `HTTP ${resp.status} ao exportar figura para publicação`;
+    const errBody = await resp.json().catch(() => null);
+    const msg = errBody?.erro || `HTTP ${resp.status} ao exportar figura para publicação`;
     await registrarLogApp("error", msg);
     throw new Error(msg);
   }
@@ -439,7 +478,7 @@ export async function exportarZipBase64(
 ): Promise<{ conteudo_b64?: string; nome_sugerido?: string; erro?: string }> {
   const base = await obterApiBase();
   const q = encodeURIComponent(ids.join(","));
-  const resp = await fetch(`${base}/export-zip-b64?ids=${q}`);
+  const resp = await fetch(`${base}/api/export-zip-b64?ids=${q}`);
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return resp.json();
 }
@@ -447,7 +486,7 @@ export async function exportarZipBase64(
 export async function limparSessaoBackend(): Promise<void> {
   try {
     const base = await obterApiBase();
-    await fetch(`${base}/session`, { method: "DELETE" });
+    await fetch(`${base}/api/session`, { method: "DELETE" });
   } catch {
     // Ignora
   }
@@ -455,7 +494,7 @@ export async function limparSessaoBackend(): Promise<void> {
 
 export function urlExportZip(ids: string[]): string {
   const q = encodeURIComponent(ids.join(","));
-  return `${resolvedApiBase}/export-zip?ids=${q}`;
+  return `${resolvedApiBase}/api/export-zip?ids=${q}`;
 }
 
 export async function selecionarPastaEListarImagens(): Promise<File[] | null> {

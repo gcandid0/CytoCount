@@ -12,10 +12,12 @@ import {
   carregarAmostraDemo,
   exportarZipBase64,
   lerConfigUsuario,
+  abrirPastaLogs,
   limparSessaoBackend,
   obterDiagnosticoBackend,
   processarImagem,
   registrarLogApp,
+  reiniciarBackendMotor,
   reprocessarAmostra,
   salvarArquivoComDialogo,
   salvarConfigUsuario,
@@ -27,6 +29,7 @@ import {
   formatarViabilidadeDeContagem,
   obterLocale,
 } from "./lib/format";
+import DropdownIdioma from "./components/DropdownIdioma";
 import Uploader from "./components/Uploader";
 import PainelCalibracao from "./components/PainelCalibracao";
 import NavegadorResultados from "./components/NavegadorResultados";
@@ -87,6 +90,12 @@ export default function App() {
   const [mostrarMascaras, setMostrarMascaras] = useState(false);
 
   const [backendOnline, setBackendOnline] = useState<boolean | null>(null);
+  const [sidecarMortoInfo, setSidecarMortoInfo] = useState<{
+    codigo?: number | null;
+    mensagem?: string;
+  } | null>(null);
+  const [reiniciandoMotor, setReiniciandoMotor] = useState(false);
+  const [detalhesErroCopiado, setDetalhesErroCopiado] = useState(false);
   const [segundosEspera, setSegundosEspera] = useState(0);
   const [diagnostico, setDiagnostico] = useState<DiagnosticoBackend>({
     logs: [],
@@ -186,6 +195,68 @@ export default function App() {
   useEffect(() => {
     iniciarConexaoBackend();
   }, [iniciarConexaoBackend]);
+
+  useEffect(() => {
+    let unlisten: (() => void) | undefined;
+    import("@tauri-apps/api/event")
+      .then(({ listen }) => {
+        listen<{ online: boolean; code?: number | null; msg?: string }>(
+          "backend-status",
+          (event) => {
+            if (!event.payload.online) {
+              setBackendOnline(false);
+              setSidecarMortoInfo({
+                codigo: event.payload.code ?? null,
+                mensagem:
+                  event.payload.msg ||
+                  "O motor de análise parou inesperadamente.",
+              });
+              notificar(
+                `O motor de análise parou (código ${event.payload.code ?? "desconhecido"})`,
+                "erro"
+              );
+            } else {
+              setBackendOnline(true);
+              setSidecarMortoInfo(null);
+              notificar("Motor de análise online e pronto.", "sucesso");
+            }
+          }
+        ).then((fn) => {
+          unlisten = fn;
+        });
+      })
+      .catch(() => {});
+
+    const handleGlobalError = (e: Event) => {
+      const ce = e as CustomEvent<{
+        tipo: string;
+        mensagem: string;
+        detalhes: string;
+      }>;
+      if (ce.detail) {
+        notificar(`Erro na interface: ${ce.detail.mensagem}`, "erro");
+      }
+    };
+    window.addEventListener("cytocount-global-error", handleGlobalError);
+
+    return () => {
+      if (unlisten) unlisten();
+      window.removeEventListener("cytocount-global-error", handleGlobalError);
+    };
+  }, [notificar]);
+
+  const handleReiniciarMotor = useCallback(async () => {
+    setReiniciandoMotor(true);
+    try {
+      await reiniciarBackendMotor();
+      iniciarConexaoBackend();
+      notificar("Comando de reinício enviado ao motor.", "info");
+    } catch (err) {
+      notificar(`Falha ao reiniciar motor: ${err}`, "erro");
+    } finally {
+      setReiniciandoMotor(false);
+    }
+  }, [iniciarConexaoBackend, notificar]);
 
   const resultadosValidos = useMemo(
     () => resultados.filter((r) => !r.erro),
@@ -1007,6 +1078,18 @@ export default function App() {
                     className="menu-item"
                     onClick={() => {
                       setMenuAberto(null);
+                      abrirPastaLogs();
+                    }}
+                  >
+                    <FolderOpenIcon size={14} />
+                    <span>{t.menu_open_logs}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="menu-item"
+                    onClick={() => {
+                      setMenuAberto(null);
                       obterDiagnosticoBackend().then(setDiagnostico);
                       setMostrarFeedback(true);
                     }}
@@ -1020,22 +1103,62 @@ export default function App() {
           </nav>
         </div>
 
-        {/* Canto Direito: Dropdown Compacto de Idioma (PT / EN / ES) */}
+        {/* Canto Direito: Dropdown Customizado de Idioma (PT / EN / ES) */}
         <div className="topbar-right">
-          <div className="lang-dropdown-compact">
-            <select
-              aria-label="Selecionar idioma"
-              className="lang-select-native"
-              value={idioma}
-              onChange={(e) => handleTrocarIdioma(e.target.value as Idioma)}
-            >
-              <option value="pt">PT · Português</option>
-              <option value="en">EN · English</option>
-              <option value="es">ES · Español</option>
-            </select>
-          </div>
+          <DropdownIdioma idiomaAtual={idioma} onMudarIdioma={handleTrocarIdioma} />
         </div>
       </header>
+
+      {/* Alerta de Motor Parado com Ação de Reinício Imediato */}
+      {backendOnline === false && (
+        <div className="engine-stopped-banner" role="alert">
+          <div className="engine-stopped-content">
+            <AlertTriangleIcon size={16} />
+            <div className="engine-stopped-text">
+              <strong>{t.engine_stopped}</strong>
+              {sidecarMortoInfo?.codigo !== undefined &&
+                sidecarMortoInfo.codigo !== null && (
+                  <span className="engine-stopped-sub">
+                    {" "}(Código: {sidecarMortoInfo.codigo})
+                  </span>
+                )}
+            </div>
+          </div>
+          <div className="engine-stopped-actions">
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              disabled={reiniciandoMotor}
+              onClick={handleReiniciarMotor}
+            >
+              {reiniciandoMotor ? "Reiniciando..." : t.btn_restart_engine}
+            </button>
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={abrirPastaLogs}
+            >
+              <FolderOpenIcon size={13} />
+              <span>{t.menu_open_logs}</span>
+            </button>
+            {sidecarMortoInfo?.mensagem && (
+              <button
+                type="button"
+                className="btn btn-ghost btn-sm"
+                onClick={() => {
+                  navigator.clipboard.writeText(
+                    `CytoCount Sidecar Crash Report\nCódigo: ${sidecarMortoInfo.codigo}\nMsg: ${sidecarMortoInfo.mensagem}\nData: ${new Date().toISOString()}`
+                  );
+                  setDetalhesErroCopiado(true);
+                  setTimeout(() => setDetalhesErroCopiado(false), 2000);
+                }}
+              >
+                {detalhesErroCopiado ? "Copiado!" : t.btn_copy_details}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <div className="workspace">
         <aside className="sidebar">

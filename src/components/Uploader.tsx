@@ -139,20 +139,20 @@ export default function Uploader({
       <div className="upload-actions-row">
         <button
           type="button"
-          className="btn-upload-sub"
+          className="btn btn-secondary btn-upload-sub"
           disabled={desabilitado}
           onClick={() => inputRef.current?.click()}
         >
-          <PlusCircleIcon size={13} />
+          <PlusCircleIcon size={14} />
           <span>{t.btn_add_files}</span>
         </button>
         <button
           type="button"
-          className="btn-upload-sub"
+          className="btn btn-secondary btn-upload-sub"
           disabled={desabilitado || carregandoPasta}
           onClick={handleSelecionarPastaNativa}
         >
-          <FolderOpenIcon size={13} />
+          <FolderOpenIcon size={14} />
           <span>{carregandoPasta ? "..." : t.btn_add_folder}</span>
         </button>
       </div>
@@ -160,11 +160,11 @@ export default function Uploader({
       {onAbrirMergeCanais && (
         <button
           type="button"
-          className="btn-upload-merge"
+          className="btn btn-secondary btn-upload-merge"
           disabled={desabilitado}
           onClick={onAbrirMergeCanais}
         >
-          <LayersIcon size={13} />
+          <LayersIcon size={14} />
           <span>{t.btn_merge_channels}</span>
         </button>
       )}
@@ -189,7 +189,7 @@ export default function Uploader({
             {!desabilitado && (
               <button
                 type="button"
-                className="file-clear-all"
+                className="btn btn-ghost btn-sm file-clear-all"
                 onClick={() => onArquivosSelecionados([])}
               >
                 {t.clear_list}
