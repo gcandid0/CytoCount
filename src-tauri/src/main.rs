@@ -1,0 +1,477 @@
+// Ponto de entrada do lado nativo do CytoCount v1.1.0.
+//
+// Responsabilidades:
+// 1. Gerenciar o ciclo de vida do backend Python (sidecar viacell-backend)
+//    - Alocação dinâmica de porta (evita conflitos de porta ocupada)
+//    - Roteamento de logs stdout/stderr e eventos do frontend para arquivo e memória
+//    - Encerramento estrito de processos filhos ao fechar o app (sem processos zumbis)
+// 2. Expor comandos nativos (diálogos de pasta, "Salvar como", config.json e logs).
+
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::collections::VecDeque;
+use std::fs::{self, OpenOptions};
+use std::io::Write;
+use std::net::{SocketAddr, TcpListener, TcpStream};
+use std::path::PathBuf;
+use std::sync::{Arc, Mutex};
+use std::time::Duration;
+use tauri::Manager;
+use tauri_plugin_shell::process::{CommandChild, CommandEvent};
+use tauri_plugin_shell::ShellExt;
+
+struct BackendState {
+    port: u16,
+    #[allow(dead_code)]
+    child: Arc<Mutex<Option<CommandChild>>>,
+    recent_logs: Arc<Mutex<VecDeque<String>>>,
+    log_file_path: PathBuf,
+    config_file_path: PathBuf,
+}
+
+#[tauri::command]
+fn get_backend_url(state: tauri::State<BackendState>) -> String {
+    format!("http://127.0.0.1:{}", state.port)
+}
+
+#[tauri::command]
+fn get_backend_logs(state: tauri::State<BackendState>) -> Vec<String> {
+    if let Ok(logs) = state.recent_logs.lock() {
+        logs.iter().cloned().collect()
+    } else {
+        Vec::new()
+    }
+}
+
+#[tauri::command]
+fn get_log_path(state: tauri::State<BackendState>) -> String {
+    state.log_file_path.to_string_lossy().to_string()
+}
+
+#[tauri::command]
+fn registrar_log_frontend(
+    state: tauri::State<BackendState>,
+    nivel: String,
+    mensagem: String,
+) -> Result<(), String> {
+    let prefix = format!("[frontend:{}]", nivel.to_lowercase());
+    log_line(&state.log_file_path, &state.recent_logs, &prefix, &mensagem);
+    Ok(())
+}
+
+#[tauri::command]
+fn get_user_config(state: tauri::State<BackendState>) -> Result<String, String> {
+    if state.config_file_path.exists() {
+        fs::read_to_string(&state.config_file_path)
+            .map_err(|e| format!("Falha ao ler config.json: {e}"))
+    } else {
+        Ok("{}".to_string())
+    }
+}
+
+#[tauri::command]
+fn save_user_config(
+    state: tauri::State<BackendState>,
+    config_json: String,
+) -> Result<String, String> {
+    if let Some(parent) = state.config_file_path.parent() {
+        let _ = fs::create_dir_all(parent);
+    }
+    fs::write(&state.config_file_path, config_json.as_bytes())
+        .map_err(|e| format!("Falha ao salvar config.json: {e}"))?;
+    Ok(state.config_file_path.to_string_lossy().to_string())
+}
+
+fn decode_base64_simple(input: &str) -> Result<Vec<u8>, String> {
+    let mut out = Vec::with_capacity(input.len() * 3 / 4);
+    let mut buf: u32 = 0;
+    let mut bits: u8 = 0;
+
+    for b in input.bytes() {
+        let val = match b {
+            b'A'..=b'Z' => b - b'A',
+            b'a'..=b'z' => b - b'a' + 26,
+            b'0'..=b'9' => b - b'0' + 52,
+            b'+' => 62,
+            b'/' => 63,
+            b'=' => break,
+            b' ' | b'\n' | b'\r' | b'\t' => continue,
+            _ => return Err(format!("Caractere base64 inválido: {}", b as char)),
+        };
+        buf = (buf << 6) | (val as u32);
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            out.push(((buf >> bits) & 0xFF) as u8);
+        }
+    }
+    Ok(out)
+}
+
+#[tauri::command]
+fn salvar_arquivo_dialogo(
+    state: tauri::State<BackendState>,
+    nome_padrao: String,
+    conteudo: String,
+    eh_base64: bool,
+    filtro_nome: String,
+    extensao: String,
+) -> Result<Option<String>, String> {
+    let ext_clean = extensao.trim_start_matches('.').to_string();
+    let dialog = rfd::FileDialog::new()
+        .set_file_name(&nome_padrao)
+        .add_filter(&filtro_nome, &[&ext_clean]);
+
+    let Some(path) = dialog.save_file() else {
+        return Ok(None);
+    };
+
+    let bytes = if eh_base64 {
+        decode_base64_simple(&conteudo)?
+    } else {
+        conteudo.into_bytes()
+    };
+
+    fs::write(&path, &bytes).map_err(|e| {
+        let msg = format!("Erro ao gravar arquivo em {}: {e}", path.display());
+        log_line(&state.log_file_path, &state.recent_logs, "[erro]", &msg);
+        msg
+    })?;
+
+    let saved_str = path.to_string_lossy().to_string();
+    log_line(
+        &state.log_file_path,
+        &state.recent_logs,
+        "[export]",
+        &format!("Arquivo salvo com sucesso em: {saved_str}"),
+    );
+    Ok(Some(saved_str))
+}
+
+#[derive(serde::Serialize)]
+struct ArquivoInfo {
+    nome: String,
+    caminho: String,
+    tamanho: u64,
+}
+
+#[tauri::command]
+fn selecionar_pasta() -> Result<Option<String>, String> {
+    let folder = rfd::FileDialog::new()
+        .set_title("Selecionar pasta com imagens de microscopia")
+        .pick_folder();
+
+    Ok(folder.map(|p| p.to_string_lossy().to_string()))
+}
+
+#[tauri::command]
+fn listar_imagens_pasta(caminho_pasta: String) -> Result<Vec<ArquivoInfo>, String> {
+    let path = std::path::Path::new(&caminho_pasta);
+    if !path.is_dir() {
+        return Err("O caminho especificado não é uma pasta válida.".to_string());
+    }
+
+    let extensoes = ["bmp", "png", "jpg", "jpeg", "tif", "tiff"];
+    let mut arquivos = Vec::new();
+
+    if let Ok(entries) = std::fs::read_dir(path) {
+        for entry in entries.flatten() {
+            let p = entry.path();
+            if p.is_file() {
+                if let Some(ext) = p.extension().and_then(|e| e.to_str()) {
+                    if extensoes.iter().any(|&e| e.eq_ignore_ascii_case(ext)) {
+                        let nome = p.file_name().unwrap_or_default().to_string_lossy().to_string();
+                        let tamanho = entry.metadata().map(|m| m.len()).unwrap_or(0);
+                        arquivos.push(ArquivoInfo {
+                            nome,
+                            caminho: p.to_string_lossy().to_string(),
+                            tamanho,
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    arquivos.sort_by(|a, b| a.nome.to_lowercase().cmp(&b.nome.to_lowercase()));
+    Ok(arquivos)
+}
+
+#[tauri::command]
+fn ler_arquivo_bytes(caminho: String) -> Result<Vec<u8>, String> {
+    std::fs::read(&caminho).map_err(|e| format!("Erro ao ler arquivo: {e}"))
+}
+
+fn is_port_in_use(port: u16) -> bool {
+    TcpListener::bind(("127.0.0.1", port)).is_err()
+}
+
+fn is_backend_responsive(port: u16) -> bool {
+    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    if let Ok(stream) = TcpStream::connect_timeout(&addr, Duration::from_millis(300)) {
+        drop(stream);
+        return true;
+    }
+    false
+}
+
+fn find_available_port(start: u16, max_attempts: u16) -> u16 {
+    for port in start..(start + max_attempts) {
+        if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+            return port;
+        }
+    }
+    start
+}
+
+fn log_line(
+    file_path: &PathBuf,
+    recent_logs: &Arc<Mutex<VecDeque<String>>>,
+    prefix: &str,
+    msg: &str,
+) {
+    let clean_msg = msg.trim_end();
+    if clean_msg.is_empty() {
+        return;
+    }
+
+    let timestamp = chrono_lite_timestamp();
+    let formatted = format!("[{timestamp}] {prefix} {clean_msg}");
+
+    if let Ok(mut logs) = recent_logs.lock() {
+        if logs.len() >= 150 {
+            logs.pop_front();
+        }
+        logs.push_back(formatted.clone());
+    }
+
+    if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(file_path) {
+        let _ = writeln!(f, "{formatted}");
+    }
+}
+
+fn chrono_lite_timestamp() -> String {
+    match std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH) {
+        Ok(d) => {
+            let secs = d.as_secs();
+            let hours = (secs / 3600) % 24;
+            let mins = (secs / 60) % 60;
+            let s = secs % 60;
+            format!("{:02}:{:02}:{:02}", hours, mins, s)
+        }
+        Err(_) => "00:00:00".to_string(),
+    }
+}
+
+fn main() {
+    let child_holder: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
+    let recent_logs: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+
+    let child_holder_cleanup = child_holder.clone();
+
+    let app = tauri::Builder::default()
+        .plugin(tauri_plugin_shell::init())
+        .invoke_handler(tauri::generate_handler![
+            get_backend_url,
+            get_backend_logs,
+            get_log_path,
+            registrar_log_frontend,
+            get_user_config,
+            save_user_config,
+            salvar_arquivo_dialogo,
+            selecionar_pasta,
+            listar_imagens_pasta,
+            ler_arquivo_bytes
+        ])
+        .on_window_event({
+            let child_holder = child_holder.clone();
+            move |_window, event| {
+                if let tauri::WindowEvent::Destroyed = event {
+                    if let Ok(mut lock) = child_holder.lock() {
+                        if let Some(child) = lock.take() {
+                            let _ = child.kill();
+                        }
+                    }
+                }
+            }
+        })
+        .setup({
+            let child_holder = child_holder.clone();
+            let recent_logs = recent_logs.clone();
+
+            move |app| {
+                let log_dir = app
+                    .path()
+                    .app_log_dir()
+                    .unwrap_or_else(|_| std::env::temp_dir().join("CytoCount"));
+                let _ = fs::create_dir_all(&log_dir);
+                let log_file_path = log_dir.join("viacell-backend.log");
+
+                let config_dir = app
+                    .path()
+                    .app_config_dir()
+                    .unwrap_or_else(|_| log_dir.clone());
+                let _ = fs::create_dir_all(&config_dir);
+                let config_file_path = config_dir.join("config.json");
+
+                log_line(
+                    &log_file_path,
+                    &recent_logs,
+                    "[main]",
+                    &format!(
+                        "Iniciando CytoCount v1.1.0. Log em: {} | Config em: {}",
+                        log_file_path.display(),
+                        config_file_path.display()
+                    ),
+                );
+
+                let default_port = 8756;
+                let (port, should_spawn) = if is_backend_responsive(default_port) {
+                    log_line(
+                        &log_file_path,
+                        &recent_logs,
+                        "[main]",
+                        &format!("Backend detectado na porta {default_port}. Reutilizando instância ativa."),
+                    );
+                    (default_port, false)
+                } else {
+                    let chosen_port = if is_port_in_use(default_port) {
+                        let alternative = find_available_port(8757, 20);
+                        log_line(
+                            &log_file_path,
+                            &recent_logs,
+                            "[main]",
+                            &format!("Porta padrão {default_port} indisponível. Alocada porta alternativa {alternative}."),
+                        );
+                        alternative
+                    } else {
+                        default_port
+                    };
+                    (chosen_port, true)
+                };
+
+                app.manage(BackendState {
+                    port,
+                    child: child_holder.clone(),
+                    recent_logs: recent_logs.clone(),
+                    log_file_path: log_file_path.clone(),
+                    config_file_path,
+                });
+
+                if should_spawn {
+                    let shell = app.handle().shell();
+                    match shell.sidecar("viacell-backend") {
+                        Ok(sidecar_command) => {
+                            let parent_pid = std::process::id().to_string();
+                            let port_str = port.to_string();
+                            let cmd = sidecar_command
+                                .args(["--port", &port_str, "--parent-pid", &parent_pid]);
+
+                            match cmd.spawn() {
+                                Ok((mut rx, child)) => {
+                                    log_line(
+                                        &log_file_path,
+                                        &recent_logs,
+                                        "[main]",
+                                        &format!(
+                                            "Sidecar iniciado com sucesso (PID: {}). Porta: {port}.",
+                                            child.pid()
+                                        ),
+                                    );
+
+                                    if let Ok(mut lock) = child_holder.lock() {
+                                        *lock = Some(child);
+                                    }
+
+                                    let log_file_for_task = log_file_path.clone();
+                                    let logs_for_task = recent_logs.clone();
+
+                                    tauri::async_runtime::spawn(async move {
+                                        while let Some(event) = rx.recv().await {
+                                            match event {
+                                                CommandEvent::Stdout(bytes) => {
+                                                    let s = String::from_utf8_lossy(&bytes);
+                                                    log_line(
+                                                        &log_file_for_task,
+                                                        &logs_for_task,
+                                                        "[backend stdout]",
+                                                        &s,
+                                                    );
+                                                    #[cfg(debug_assertions)]
+                                                    print!("[viacell-backend] {}", s);
+                                                }
+                                                CommandEvent::Stderr(bytes) => {
+                                                    let s = String::from_utf8_lossy(&bytes);
+                                                    log_line(
+                                                        &log_file_for_task,
+                                                        &logs_for_task,
+                                                        "[backend stderr]",
+                                                        &s,
+                                                    );
+                                                    #[cfg(debug_assertions)]
+                                                    eprint!("[viacell-backend] {}", s);
+                                                }
+                                                CommandEvent::Terminated(term) => {
+                                                    log_line(
+                                                        &log_file_for_task,
+                                                        &logs_for_task,
+                                                        "[main]",
+                                                        &format!(
+                                                            "Processo do backend finalizou com código: {:?}",
+                                                            term.code
+                                                        ),
+                                                    );
+                                                }
+                                                CommandEvent::Error(err) => {
+                                                    log_line(
+                                                        &log_file_for_task,
+                                                        &logs_for_task,
+                                                        "[backend error]",
+                                                        &err,
+                                                    );
+                                                }
+                                                _ => {}
+                                            }
+                                        }
+                                    });
+                                }
+                                Err(err) => {
+                                    log_line(
+                                        &log_file_path,
+                                        &recent_logs,
+                                        "[erro]",
+                                        &format!("Falha ao spawnar sidecar: {err}"),
+                                    );
+                                }
+                            }
+                        }
+                        Err(err) => {
+                            log_line(
+                                &log_file_path,
+                                &recent_logs,
+                                "[erro]",
+                                &format!("Binário viacell-backend não localizado: {err}"),
+                            );
+                        }
+                    }
+                }
+
+                Ok(())
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("erro ao inicializar o CytoCount");
+
+    app.run(move |_app_handle, event| {
+        match event {
+            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+                if let Ok(mut lock) = child_holder_cleanup.lock() {
+                    if let Some(child) = lock.take() {
+                        let _ = child.kill();
+                    }
+                }
+            }
+            _ => {}
+        }
+    });
+}

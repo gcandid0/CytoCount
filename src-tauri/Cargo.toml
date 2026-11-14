@@ -1,0 +1,17 @@
+[package]
+name = "viacell"
+version = "1.1.0"
+description = "CytoCount — Automated Fluorescence Cell Viability Counter and Morphological Segmenter"
+authors = ["Gabriel Candido Messias dos Santos"]
+edition = "2021"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tauri = { version = "2", features = [] }
+tauri-plugin-shell = "2"
+rfd = "0.15"
+
