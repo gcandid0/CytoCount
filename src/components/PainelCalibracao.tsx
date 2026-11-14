@@ -209,7 +209,7 @@ export default function PainelCalibracao({
 
             <button
               type="button"
-              className="btn-ghost"
+              className="btn btn-secondary btn-sm btn-restore-defaults"
               disabled={desabilitado}
               onClick={() =>
                 onChange({
@@ -224,7 +224,7 @@ export default function PainelCalibracao({
               }
             >
               <RefreshCwIcon size={13} />
-              <span style={{ marginLeft: 6 }}>{t.btn_restore}</span>
+              <span>{t.btn_restore}</span>
             </button>
           </div>
         )}

@@ -105,9 +105,40 @@ export default function ModalFeedback({
   return (
     <Modal
       titulo="Enviar Feedback ou Relatar Problema"
+      subtitulo="Gere um diagnóstico técnico completo com logs ou envie por e-mail"
       icone={<MessageSquareIcon size={20} />}
       larguraMax={720}
       onFechar={onFechar}
+      rodape={
+        <>
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleCopiar}
+          >
+            {copiado ? <CheckIcon size={14} className="text-green" /> : <CopyIcon size={14} />}
+            <span>{copiado ? "Relatório Copiado!" : "Copiar relatório"}</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={handleSalvarArquivoLocal}
+          >
+            <DownloadIcon size={14} />
+            <span>Salvar relatório (.txt)</span>
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={handleAbrirEmail}
+          >
+            <MailIcon size={14} />
+            <span>Abrir no E-mail</span>
+          </button>
+        </>
+      }
     >
       <div className="feedback-grid-2">
         <label className="field">
@@ -155,35 +186,6 @@ export default function ModalFeedback({
           Incluir informações do sistema (Versão {APP_VERSION}, SO) e log de diagnóstico
         </span>
       </label>
-
-      <div className="feedback-actions-bar" style={{ marginTop: 18 }}>
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          onClick={handleCopiar}
-        >
-          {copiado ? <CheckIcon size={14} className="text-emerald-400" /> : <CopyIcon size={14} />}
-          <span>{copiado ? "Relatório Copiado!" : "Copiar relatório"}</span>
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-secondary btn-sm"
-          onClick={handleSalvarArquivoLocal}
-        >
-          <DownloadIcon size={14} />
-          <span>Salvar relatório (.txt)</span>
-        </button>
-
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          onClick={handleAbrirEmail}
-        >
-          <MailIcon size={14} />
-          <span>Abrir no E-mail</span>
-        </button>
-      </div>
     </Modal>
   );
 }

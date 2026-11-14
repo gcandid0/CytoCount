@@ -1,7 +1,14 @@
+import { Idioma } from "../lib/i18n";
 import { KeyboardIcon } from "./Icons";
 import Modal from "./Modal";
 
-export default function ModalAtalhos({ onFechar }: { onFechar: () => void }) {
+export default function ModalAtalhos({
+  onFechar,
+  idioma = "pt",
+}: {
+  onFechar: () => void;
+  idioma?: Idioma;
+}) {
   const atalhos = [
     { tecla: "Enter", acao: "Processar lote de imagens selecionadas" },
     { tecla: "Ctrl + Z", acao: "Desfazer última edição manual de célula" },
@@ -14,14 +21,27 @@ export default function ModalAtalhos({ onFechar }: { onFechar: () => void }) {
     { tecla: "Ctrl + M", acao: "Mesclar Canais (DAPI / FITC / PI)" },
     { tecla: "Ctrl + P", acao: "Relatório Executivo / PDF" },
     { tecla: "F1", acao: "Abrir Guia & Tutorial" },
+    { tecla: "?", acao: "Abrir lista de atalhos de teclado" },
   ];
 
   return (
     <Modal
-      titulo="Atalhos de Teclado"
+      titulo={
+        idioma === "en"
+          ? "Keyboard Shortcuts"
+          : idioma === "es"
+          ? "Atajos de Teclado"
+          : "Atalhos de Teclado"
+      }
+      subtitulo="Navegação rápida, edição manual e exportação"
       icone={<KeyboardIcon size={20} />}
       larguraMax={720}
       onFechar={onFechar}
+      rodape={
+        <button type="button" className="btn btn-primary btn-sm" onClick={onFechar}>
+          <span>{idioma === "en" ? "Close" : idioma === "es" ? "Cerrar" : "Fechar"}</span>
+        </button>
+      }
     >
       <div className="shortcuts-grid">
         {atalhos.map((a) => (

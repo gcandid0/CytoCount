@@ -727,6 +727,23 @@ export default function App() {
       if (e.key === "F1") {
         e.preventDefault();
         setMostrarTutorial((v) => !v);
+      } else if (
+        e.key === "Enter" &&
+        !e.ctrlKey &&
+        !e.metaKey &&
+        !mostrarBoasVindas &&
+        !mostrarTutorial &&
+        !mostrarSobre &&
+        !mostrarAtalhos &&
+        !mostrarFeedback &&
+        !mostrarMergeCanais &&
+        !mostrarExportarPub &&
+        arquivos.length > 0 &&
+        !processando &&
+        backendOnline === true
+      ) {
+        e.preventDefault();
+        processarLote();
       } else if (e.key === "?" || (e.shiftKey && e.key === "/")) {
         e.preventDefault();
         setMostrarAtalhos((v) => !v);
@@ -1503,13 +1520,17 @@ export default function App() {
       )}
 
       {mostrarAtalhos && (
-        <ModalAtalhos onFechar={() => setMostrarAtalhos(false)} />
+        <ModalAtalhos
+          onFechar={() => setMostrarAtalhos(false)}
+          idioma={idioma}
+        />
       )}
 
       {mostrarTutorial && (
         <ModalTutorial
           onFechar={() => setMostrarTutorial(false)}
           onCarregarExemplo={handleCarregarAmostraDemo}
+          idioma={idioma}
         />
       )}
 
@@ -1518,6 +1539,7 @@ export default function App() {
           onFechar={() => setMostrarSobre(false)}
           onReabrirBoasVindas={() => setMostrarBoasVindas(true)}
           onNotificar={notificar}
+          idioma={idioma}
         />
       )}
 
