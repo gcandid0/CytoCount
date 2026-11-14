@@ -916,6 +916,7 @@ def classificar_nucleos(
     raio_dilatacao: int = 4,
     min_pixels_regiao: int = 6,
     labels_citoplasma: Optional[np.ndarray] = None,
+    raio_nuclear: Optional[int] = None,
 ) -> dict[str, Any]:
     """
     Classifica CADA núcleo segmentado em `labels_azul` sem descartar nenhum ID,
@@ -923,7 +924,10 @@ def classificar_nucleos(
     Quando `labels_citoplasma` é fornecido, utiliza a máscara secundária Voronoi de citoplasma
     para quantificar o sinal fluorescente sem invadir células vizinhas e extrai o contorno citoplasmático.
     """
+    usar_cito = labels_citoplasma is not None and labels_citoplasma.shape == labels_azul.shape
+    r_nuc = raio_nuclear if (raio_nuclear is not None and raio_nuclear > 0) else raio_dilatacao
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (raio_dilatacao * 2 + 1,) * 2)
+    kernel_nuc = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (r_nuc * 2 + 1,) * 2)
 
     ids = [int(l) for l in np.unique(labels_azul) if l != 0]
     if not ids:
@@ -944,7 +948,6 @@ def classificar_nucleos(
     labels_indeterminadas = np.zeros_like(labels_azul)
     tabela_celulas = []
 
-    usar_cito = labels_citoplasma is not None and labels_citoplasma.shape == labels_azul.shape
     slices_base = ndi.find_objects(labels_citoplasma if usar_cito else labels_azul)
     slices_nuc = ndi.find_objects(labels_azul)
     H, W = labels_azul.shape
@@ -979,8 +982,10 @@ def classificar_nucleos(
             sub_cito = labels_citoplasma[y0:y1, x0:x1] == label_id
             # Garante que o núcleo sempre faz parte do domínio da célula
             sub_regiao = sub_cito | mask_nucleo
+            sub_nuc = cv2.dilate(sub_obj, kernel_nuc) > 0 if area_nucleo > 0 else sub_regiao
         else:
             sub_regiao = cv2.dilate(sub_obj, kernel) > 0
+            sub_nuc = sub_regiao
 
         area_regiao = int(sub_regiao.sum())
         area_citoplasma = max(0, area_regiao - area_nucleo)
@@ -997,43 +1002,20 @@ def classificar_nucleos(
             sub_verde = mask_verde_bin[y0:y1, x0:x1]
             sub_amarelo = mask_amarela_bin[y0:y1, x0:x1]
 
-            # 1. Região Core (nuclear e perinuclear imediata):
-            # Cobre o núcleo e a borda nuclear onde o Iodeto de Propídio (PI) se acumula em células mortas.
-            raio_core = max(3, int(raio_dilatacao // 2) if usar_cito else int(raio_dilatacao))
-            kernel_core = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (raio_core * 2 + 1, raio_core * 2 + 1))
-            mask_core = cv2.dilate(sub_obj, kernel_core) > 0 if area_nucleo > 0 else sub_regiao
-
-            # 2. Medição de Calceína (Verde / Vivas):
-            frac_verde_celula = float(sub_verde[sub_regiao].mean()) if area_regiao > 0 else 0.0
-            frac_verde_core = float(sub_verde[mask_core].mean()) if mask_core.sum() > 0 else 0.0
-            frac_verde = max(frac_verde_celula, frac_verde_core)
-
-            # 3. Medição de Iodeto de Propídio / PI (Amarelo / Mortas):
-            frac_amarela_core = float(sub_amarelo[mask_core].mean()) if mask_core.sum() > 0 else 0.0
-            frac_amarela_celula = float(sub_amarelo[sub_regiao].mean()) if area_regiao > 0 else 0.0
-            frac_amarela = max(frac_amarela_core, frac_amarela_celula if not usar_cito else 0.0)
-
-            # Critérios de detecção de morte celular:
-            # a) PI presente no core nuclear/perinuclear (sensibilidade calibrada em >= 12%)
-            pos_amarelo_core = frac_amarela_core >= 0.12
-            # b) OU corpo celular com fluorescência amarela e sem verde (morte necrótica avançada)
-            pos_amarelo_corpo = (frac_amarela_celula >= 0.22) and (frac_verde_celula < 0.22)
-            pos_amarelo = pos_amarelo_core or pos_amarelo_corpo
+            if usar_cito:
+                frac_verde = float(sub_verde[sub_regiao].mean())
+                frac_amarela = float(sub_amarelo[sub_nuc].mean())
+            else:
+                frac_verde = float(sub_verde[sub_regiao].mean())
+                frac_amarela = float(sub_amarelo[sub_regiao].mean())
 
             pos_verde = frac_verde >= FRACAO_MINIMA_VERDE
+            pos_amarelo = frac_amarela >= FRACAO_MINIMA_AMARELA
 
-            # Classificação:
             if pos_amarelo:
-                # Confirmação de morte celular: PI detectado no core nuclear ou corpo necrótico.
-                # Apenas se o verde for extremamente saturado (> 65%) E o amarelo no core for ruído mínimo (< 14%)
-                if frac_verde >= 0.65 and frac_amarela_core < 0.14 and not pos_amarelo_corpo:
-                    classe = "viavel"
-                    n_viaveis += 1
-                    labels_viaveis[y0:y1, x0:x1][mask_desenho] = label_id
-                else:
-                    classe = "morta"
-                    n_mortas += 1
-                    labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
+                classe = "morta"
+                n_mortas += 1
+                labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
             elif pos_verde:
                 classe = "viavel"
                 n_viaveis += 1
@@ -1490,6 +1472,7 @@ def processar_canais_em_memoria(
         img_intensidade=img_gray,
         raio_dilatacao=raio_dilatacao if segmentar_cito else raio_auto,
         labels_citoplasma=labels_cito,
+        raio_nuclear=raio_auto,
     )
 
     tabela_celulas = classificacao["tabela_celulas"]
