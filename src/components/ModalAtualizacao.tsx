@@ -157,7 +157,7 @@ export default function ModalAtualizacao({
                 marginTop: 8,
               }}
             >
-              {progressoPct}% concluído
+              {progressoPct >= 100 ? "Download concluído! O instalador foi acionado. Feche o aplicativo se solicitado." : `${progressoPct}% concluído`}
             </span>
           </div>
         ) : (
