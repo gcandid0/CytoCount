@@ -1,12 +1,12 @@
 export type Idioma = "pt" | "en" | "es";
 
 export const CITACAO_OFICIAL =
-  "SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter. Versão 1.2.0. Campinas, 2026. DOI: 10.5281/zenodo.24224692.";
+  "SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter. Versão 1.3.0. Campinas, 2026. DOI: 10.5281/zenodo.24224692.";
 
 export const CITACAO_BIBTEX = `@software{santos_cytocount_2026,
   author       = {Santos, Gabriel Candido Messias dos},
   title        = {{CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter}},
-  version      = {1.2.0},
+  version      = {1.3.0},
   year         = {2026},
   address      = {Campinas},
   doi          = {10.5281/zenodo.24224692},

@@ -4,7 +4,7 @@ import { Idioma } from "./i18n";
 let resolvedApiBase = "http://127.0.0.1:8756";
 let urlResolvida = false;
 
-export const APP_VERSION = "1.2.0";
+export const APP_VERSION = "1.3.0";
 
 export async function obterApiBase(): Promise<string> {
   if (urlResolvida) return resolvedApiBase;
