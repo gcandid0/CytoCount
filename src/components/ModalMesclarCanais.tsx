@@ -7,6 +7,7 @@ import {
 import { Idioma } from "../lib/i18n";
 import { EyeIcon, LayersIcon, PlusCircleIcon, XIcon } from "./Icons_extra";
 import { CheckIcon } from "./Icons";
+import Modal from "./Modal";
 
 type CanalAtribuido = "azul" | "verde" | "amarelo" | "multicanal" | "ignorar";
 
@@ -64,7 +65,6 @@ export default function ModalMesclarCanais({
 
     const novos: ArquivoCanal[] = arr.map((f, idx) => {
       const det = detectarCanalPorNome(f.name);
-      // Se o nome não tiver sufixo explícito, distribui em ordem Azul, Verde, Amarelo
       const temSufixo = /(DAPI|HOECHST|BLUE|FITC|GFP|CALCEIN|PI|_C0|_C1|_C2|RFP|TRITC)/i.test(
         f.name
       );
@@ -159,158 +159,182 @@ export default function ModalMesclarCanais({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onFechar}>
-      <div
-        className="modal-card modal-wide"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <LayersIcon size={18} />
-            <h2>Mesclar Canais de Fluorescência (8 / 16-bit)</h2>
-          </div>
-          <button type="button" className="modal-close" onClick={onFechar}>
-            <XIcon size={18} />
+    <Modal
+      titulo={
+        idioma === "en"
+          ? "Merge Fluorescence Channels (8 / 16-bit)"
+          : idioma === "es"
+          ? "Fusionar Canales de Fluorescencia (8 / 16-bit)"
+          : "Mesclar Canais de Fluorescência (8 / 16-bit)"
+      }
+      subtitulo="DAPI (Azul) · Calceína-AM / FITC (Verde) · Iodeto de Propídio / PI (Amarelo/Vermelho)"
+      icone={<LayersIcon size={20} />}
+      larguraMax={820}
+      onFechar={onFechar}
+      rodape={
+        <>
+          <button type="button" className="btn btn-ghost" onClick={onFechar}>
+            {idioma === "en" ? "Cancel" : idioma === "es" ? "Cancelar" : "Cancelar"}
           </button>
-        </div>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={carregando || itens.length === 0}
+            onClick={handleGerarPreview}
+          >
+            <EyeIcon size={15} />
+            <span>
+              {carregando
+                ? "..."
+                : idioma === "en"
+                ? "Preview Composite"
+                : idioma === "es"
+                ? "Vista Previa"
+                : "Pré-visualizar Merge"}
+            </span>
+          </button>
 
-        <div className="modal-body">
-          <p className="field-help" style={{ marginBottom: 12 }}>
-            Selecione imagens monocromáticas separadas (ex.: <code>_DAPI</code>,{" "}
-            <code>_FITC</code>, <code>_PI</code>, <code>_C0/_C1/_C2</code>) ou um arquivo{" "}
-            <b>TIFF multicanal de 16 bits</b>. A faixa dinâmica de 16 bits é preservada durante a segmentação.
-          </p>
+          <button
+            type="button"
+            className="btn btn-primary"
+            disabled={carregando || itens.length === 0}
+            onClick={handleProcessarMerge}
+          >
+            <CheckIcon size={15} />
+            <span>
+              {carregando
+                ? "Processando..."
+                : idioma === "en"
+                ? "Merge & Analyze Sample"
+                : idioma === "es"
+                ? "Fusionar y Analizar"
+                : "Mesclar e Analisar Amostra"}
+            </span>
+          </button>
+        </>
+      }
+    >
+      <p className="modal-lead-text">
+        Selecione imagens monocromáticas separadas (ex.: <code>_DAPI</code>,{" "}
+        <code>_FITC</code>, <code>_PI</code>, <code>_C0/_C1/_C2</code>) ou um arquivo{" "}
+        <b>TIFF multicanal de 16 bits</b>. A faixa dinâmica de 16 bits é preservada durante a segmentação.
+      </p>
 
-          <div className="merge-top-controls">
-            <input
-              ref={inputRef}
-              type="file"
-              multiple
-              accept=".tif,.tiff,.png,.bmp,.jpg,.jpeg"
-              hidden
-              onChange={(e) => {
-                if (e.target.files) adicionarArquivos(e.target.files);
-                e.target.value = "";
-              }}
-            />
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={() => inputRef.current?.click()}
-            >
-              <PlusCircleIcon size={14} />
-              <span>Selecionar Arquivos de Canal</span>
-            </button>
+      <div className="merge-top-controls">
+        <input
+          ref={inputRef}
+          type="file"
+          multiple
+          accept=".tif,.tiff,.png,.bmp,.jpg,.jpeg"
+          hidden
+          onChange={(e) => {
+            if (e.target.files) adicionarArquivos(e.target.files);
+            e.target.value = "";
+          }}
+        />
+        <button
+          type="button"
+          className="btn btn-secondary"
+          onClick={() => inputRef.current?.click()}
+        >
+          <PlusCircleIcon size={14} />
+          <span>Selecionar Arquivos de Canal</span>
+        </button>
 
-            <label className="merge-name-field">
-              <span>Nome da amostra composta:</span>
-              <input
-                type="text"
-                className="input"
-                value={nomeAmostra}
-                onChange={(e) => setNomeAmostra(e.target.value)}
-              />
-            </label>
-          </div>
-
-          {itens.length > 0 && (
-            <div className="merge-files-table-wrap">
-              <table className="report-table">
-                <thead>
-                  <tr>
-                    <th>Arquivo</th>
-                    <th>Canal Atribuído</th>
-                    <th>Cor de Exibição</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {itens.map((it, idx) => (
-                    <tr key={`${it.file.name}-${idx}`}>
-                      <td>{it.file.name}</td>
-                      <td>
-                        <select
-                          className="select"
-                          value={it.canal}
-                          onChange={(e) => {
-                            const c = e.target.value as CanalAtribuido;
-                            const corPadrao =
-                              c === "azul"
-                                ? "#3b82f6"
-                                : c === "verde"
-                                ? "#10b981"
-                                : c === "amarelo"
-                                ? "#f59e0b"
-                                : "#a855f7";
-                            atualizarItem(idx, { canal: c, corHex: corPadrao });
-                          }}
-                        >
-                          <option value="azul">Núcleos Totais (DAPI / Hoechst / Azul)</option>
-                          <option value="verde">Células Vivas (FITC / Calceína / Verde)</option>
-                          <option value="amarelo">Células Mortas (PI / Etídio / Amarelo-Vermelho)</option>
-                          <option value="multicanal">TIFF Multicanal Completo</option>
-                          <option value="ignorar">Ignorar arquivo</option>
-                        </select>
-                      </td>
-                      <td>
-                        <input
-                          type="color"
-                          value={it.corHex}
-                          onChange={(e) => atualizarItem(idx, { corHex: e.target.value })}
-                          className="color-picker-input"
-                        />
-                      </td>
-                      <td className="num">
-                        <button
-                          type="button"
-                          className="file-remove"
-                          onClick={() => setItens((prev) => prev.filter((_, i) => i !== idx))}
-                        >
-                          <XIcon size={14} />
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-
-          {previewB64 && (
-            <div className="merge-preview-box">
-              <h4>Pré-visualização do Merge Composto</h4>
-              <img
-                src={`data:image/png;base64,${previewB64}`}
-                alt="Preview Merge"
-                className="merge-preview-img"
-              />
-            </div>
-          )}
-
-          <div className="modal-actions-row">
-            <button
-              type="button"
-              className="btn-secondary"
-              disabled={carregando || itens.length === 0}
-              onClick={handleGerarPreview}
-            >
-              <EyeIcon size={15} />
-              <span>{carregando ? "Gerando..." : "Pré-visualizar Merge"}</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-primary"
-              disabled={carregando || itens.length === 0}
-              style={{ width: "auto", padding: "0 20px" }}
-              onClick={handleProcessarMerge}
-            >
-              <CheckIcon size={15} />
-              <span>{carregando ? "Processando..." : "Mesclar e Analisar Amostra"}</span>
-            </button>
-          </div>
-        </div>
+        <label className="merge-name-field">
+          <span>Nome da amostra composta:</span>
+          <input
+            type="text"
+            className="input"
+            value={nomeAmostra}
+            onChange={(e) => setNomeAmostra(e.target.value)}
+          />
+        </label>
       </div>
-    </div>
+
+      {itens.length === 0 ? (
+        <div
+          className="merge-empty-drop"
+          onClick={() => inputRef.current?.click()}
+        >
+          <LayersIcon size={24} />
+          <p>Clique aqui para adicionar os arquivos de canal (DAPI, FITC, PI ou TIFF Multicanal)</p>
+          <span>Reconhecimento automático do canal pelo sufixo do arquivo</span>
+        </div>
+      ) : (
+        <div className="merge-files-table-wrap">
+          <table className="report-table">
+            <thead>
+              <tr>
+                <th>Arquivo</th>
+                <th>Canal Atribuído</th>
+                <th>Cor</th>
+                <th className="num">Ação</th>
+              </tr>
+            </thead>
+            <tbody>
+              {itens.map((it, idx) => (
+                <tr key={`${it.file.name}-${idx}`}>
+                  <td>{it.file.name}</td>
+                  <td>
+                    <select
+                      className="select"
+                      value={it.canal}
+                      onChange={(e) => {
+                        const c = e.target.value as CanalAtribuido;
+                        const corPadrao =
+                          c === "azul"
+                            ? "#3b82f6"
+                            : c === "verde"
+                            ? "#10b981"
+                            : c === "amarelo"
+                            ? "#f59e0b"
+                            : "#a855f7";
+                        atualizarItem(idx, { canal: c, corHex: corPadrao });
+                      }}
+                    >
+                      <option value="azul">Núcleos Totais (DAPI / Hoechst / Azul)</option>
+                      <option value="verde">Células Vivas (FITC / Calceína / Verde)</option>
+                      <option value="amarelo">Células Mortas (PI / Etídio / Amarelo-Vermelho)</option>
+                      <option value="multicanal">TIFF Multicanal Completo</option>
+                      <option value="ignorar">Ignorar arquivo</option>
+                    </select>
+                  </td>
+                  <td>
+                    <input
+                      type="color"
+                      value={it.corHex}
+                      onChange={(e) => atualizarItem(idx, { corHex: e.target.value })}
+                      className="color-picker-input"
+                    />
+                  </td>
+                  <td className="num">
+                    <button
+                      type="button"
+                      className="btn btn-icon btn-sm btn-ghost"
+                      onClick={() => setItens((prev) => prev.filter((_, i) => i !== idx))}
+                      title="Remover arquivo"
+                    >
+                      <XIcon size={14} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {previewB64 && (
+        <div className="merge-preview-box">
+          <h4>Pré-visualização do Merge Composto</h4>
+          <img
+            src={`data:image/png;base64,${previewB64}`}
+            alt="Preview Merge"
+            className="merge-preview-img"
+          />
+        </div>
+      )}
+    </Modal>
   );
 }

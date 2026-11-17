@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { APP_VERSION } from "../lib/api";
-import { CITACAO_BIBTEX, CITACAO_OFICIAL } from "../lib/i18n";
+import { CITACAO_BIBTEX, CITACAO_OFICIAL, Idioma } from "../lib/i18n";
 import { CheckIcon, CopyIcon, InfoIcon, MicroscopeIcon } from "./Icons";
 import Modal from "./Modal";
 
@@ -8,10 +8,12 @@ export default function ModalSobre({
   onFechar,
   onReabrirBoasVindas,
   onNotificar,
+  idioma = "pt",
 }: {
   onFechar: () => void;
   onReabrirBoasVindas?: () => void;
   onNotificar?: (msg: string, tipo?: "sucesso" | "erro" | "info") => void;
+  idioma?: Idioma;
 }) {
   const [copiadoAbnt, setCopiadoAbnt] = useState(false);
   const [copiadoBib, setCopiadoBib] = useState(false);
@@ -26,7 +28,14 @@ export default function ModalSobre({
         setCopiadoBib(true);
         setTimeout(() => setCopiadoBib(false), 2000);
       }
-      onNotificar?.("Citação copiada para a área de transferência!", "sucesso");
+      onNotificar?.(
+        idioma === "en"
+          ? "Citation copied to clipboard!"
+          : idioma === "es"
+          ? "¡Cita copiada al portapapeles!"
+          : "Citação copiada para a área de transferência!",
+        "sucesso"
+      );
     } catch {
       // Ignora
     }
@@ -34,19 +43,59 @@ export default function ModalSobre({
 
   return (
     <Modal
-      titulo="Sobre o CytoCount"
+      titulo={
+        idioma === "en"
+          ? "About CytoCount"
+          : idioma === "es"
+          ? "Acerca de CytoCount"
+          : "Sobre o CytoCount"
+      }
+      subtitulo={`Versão ${APP_VERSION} · Tauri v2 + Python Scientific Sidecar`}
       icone={<InfoIcon size={20} />}
       larguraMax={700}
       onFechar={onFechar}
+      rodape={
+        <div className="welcome-footer-row">
+          {onReabrirBoasVindas ? (
+            <button
+              type="button"
+              className="btn btn-secondary btn-sm"
+              onClick={() => {
+                onFechar();
+                onReabrirBoasVindas();
+              }}
+            >
+              <MicroscopeIcon size={14} />
+              <span>
+                {idioma === "en"
+                  ? "Open Welcome Screen"
+                  : idioma === "es"
+                  ? "Abrir Pantalla de Bienvenida"
+                  : "Abrir Tela de Boas-vindas"}
+              </span>
+            </button>
+          ) : (
+            <span />
+          )}
+          <button type="button" className="btn btn-primary btn-sm" onClick={onFechar}>
+            <span>{idioma === "en" ? "Close" : idioma === "es" ? "Cerrar" : "Fechar"}</span>
+          </button>
+        </div>
+      }
     >
       <div className="about-hero">
+        <div className="about-logo-circle" aria-hidden="true">
+          <span className="dot dot-blue" />
+          <span className="dot dot-green" />
+          <span className="dot dot-yellow" />
+        </div>
         <div>
           <h3>CytoCount Desktop</h3>
           <p className="about-version">
             Versão {APP_VERSION} · Arquitetura Tauri v2 + Python Scientific Sidecar
           </p>
-          <p style={{ fontSize: 12, color: "var(--text-dim)", margin: "4px 0 0" }}>
-            Autor: <b style={{ color: "var(--text)" }}>Gabriel Candido Messias dos Santos</b>
+          <p className="about-author">
+            Autor: <b>Gabriel Candido Messias dos Santos</b>
           </p>
         </div>
       </div>
@@ -60,13 +109,13 @@ export default function ModalSobre({
 
       <div className="citation-section">
         <div className="citation-header">
-          <span>Como citar em artigos, dissertações e teses</span>
+          <span>Como citar em artigos, dissertações e teses (ABNT / Padrão)</span>
           <button
             type="button"
             className="btn btn-secondary btn-sm"
             onClick={() => copiar(CITACAO_OFICIAL, "abnt")}
           >
-            {copiadoAbnt ? <CheckIcon size={13} className="text-emerald-400" /> : <CopyIcon size={13} />}
+            {copiadoAbnt ? <CheckIcon size={13} className="text-green" /> : <CopyIcon size={13} />}
             <span>{copiadoAbnt ? "Copiado!" : "Copiar citação"}</span>
           </button>
         </div>
@@ -81,28 +130,12 @@ export default function ModalSobre({
             className="btn btn-secondary btn-sm"
             onClick={() => copiar(CITACAO_BIBTEX, "bib")}
           >
-            {copiadoBib ? <CheckIcon size={13} className="text-emerald-400" /> : <CopyIcon size={13} />}
+            {copiadoBib ? <CheckIcon size={13} className="text-green" /> : <CopyIcon size={13} />}
             <span>{copiadoBib ? "Copiado!" : "Copiar BibTeX"}</span>
           </button>
         </div>
         <pre className="citation-code">{CITACAO_BIBTEX}</pre>
       </div>
-
-      {onReabrirBoasVindas && (
-        <div style={{ marginTop: 18, display: "flex", justifyContent: "flex-end" }}>
-          <button
-            type="button"
-            className="btn btn-secondary btn-sm"
-            onClick={() => {
-              onFechar();
-              onReabrirBoasVindas();
-            }}
-          >
-            <MicroscopeIcon size={14} />
-            <span>Abrir Tela de Boas-vindas</span>
-          </button>
-        </div>
-      )}
     </Modal>
   );
 }

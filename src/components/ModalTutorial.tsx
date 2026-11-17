@@ -1,24 +1,58 @@
+import { Idioma } from "../lib/i18n";
 import { BookOpenIcon, MicroscopeIcon } from "./Icons";
 import Modal from "./Modal";
 
 export default function ModalTutorial({
   onFechar,
   onCarregarExemplo,
+  idioma = "pt",
 }: {
   onFechar: () => void;
   onCarregarExemplo: () => void;
+  idioma?: Idioma;
 }) {
   return (
     <Modal
-      titulo="Guia Rápido & Metodologia Científica — CytoCount v1.1.0"
+      titulo={
+        idioma === "en"
+          ? "Quick Guide & Scientific Methodology — CytoCount v1.1.0"
+          : idioma === "es"
+          ? "Guía Rápida y Metodología Científica — CytoCount v1.1.0"
+          : "Guia Rápido & Metodologia Científica — CytoCount v1.1.0"
+      }
+      subtitulo="Segmentação Watershed · Limiarização de Otsu · Intervalo Binomial de Wilson 95%"
       icone={<BookOpenIcon size={20} />}
       larguraMax={760}
       onFechar={onFechar}
+      rodape={
+        <div className="welcome-footer-row">
+          <button
+            type="button"
+            className="btn btn-secondary btn-sm"
+            onClick={() => {
+              onFechar();
+              onCarregarExemplo();
+            }}
+          >
+            <MicroscopeIcon size={14} />
+            <span>
+              {idioma === "en"
+                ? "Load Sample Image"
+                : idioma === "es"
+                ? "Cargar Imagen de Ejemplo"
+                : "Carregar Imagem de Exemplo"}
+            </span>
+          </button>
+          <button type="button" className="btn btn-primary btn-sm" onClick={onFechar}>
+            <span>{idioma === "en" ? "Understood" : idioma === "es" ? "Entendido" : "Entendi"}</span>
+          </button>
+        </div>
+      }
     >
       <div className="tutorial-body">
         <div className="tutorial-step">
-          <span className="tutorial-badge">1</span>
-          <div>
+          <span className="tutorial-badge">01</span>
+          <div className="tutorial-step-content">
             <h4>Princípio Físico & Segmentação de Canais (Live/Dead Assay)</h4>
             <p>
               O CytoCount analisa três sinais de fluorescência em imagens RGB ou canais
@@ -43,8 +77,8 @@ export default function ModalTutorial({
         </div>
 
         <div className="tutorial-step">
-          <span className="tutorial-badge">2</span>
-          <div>
+          <span className="tutorial-badge">02</span>
+          <div className="tutorial-step-content">
             <h4>Fonte Única da Verdade & Intervalo de Confiança de Wilson 95%</h4>
             <p>
               Todo núcleo segmentado no canal azul é classificado em exatamente uma de três
@@ -57,8 +91,8 @@ export default function ModalTutorial({
         </div>
 
         <div className="tutorial-step">
-          <span className="tutorial-badge">3</span>
-          <div>
+          <span className="tutorial-badge">03</span>
+          <div className="tutorial-step-content">
             <h4>Curadoria Manual, ROI & Exportação para Publicação</h4>
             <p>
               Use a barra de edição na viewer para <b>Alternar classe</b>,{" "}
@@ -81,7 +115,6 @@ export default function ModalTutorial({
           <button
             type="button"
             className="btn btn-primary btn-sm"
-            style={{ width: "auto", padding: "0 18px", whiteSpace: "nowrap" }}
             onClick={() => {
               onFechar();
               onCarregarExemplo();
