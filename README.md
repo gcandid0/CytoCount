@@ -15,6 +15,7 @@
 
 <br/>
 
+<a href="https://doi.org/10.5281/zenodo.24224692"><img src="https://zenodo.org/badge/1457897635.svg" alt="DOI"></a>
 <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri%20v2-Rust-FFC131?style=for-the-badge&logo=tauri&logoColor=black" alt="Tauri v2"></a>
 <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python%203.12-FastAPI%20%7C%20OpenCV-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12"></a>
 <a href="https://react.dev/"><img src="https://img.shields.io/badge/React%2018-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18"></a>
@@ -258,7 +259,7 @@ Caso o CytoCount seja utilizado na geração de dados para artigos, dissertaçõ
 ```
 SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell
 Viability Counter and Morphological Segmenter. Versão 1.1.0. Campinas, 2026.
-Disponível em: https://github.com/gcandid0/CytoCount.
+DOI: 10.5281/zenodo.24224692. Disponível em: https://github.com/gcandid0/CytoCount.
 ```
 </details>
 
@@ -268,7 +269,7 @@ Disponível em: https://github.com/gcandid0/CytoCount.
 ```
 Santos, G. C. M. (2026). CytoCount: Automated fluorescence cell viability
 counter and morphological segmenter (Version 1.1.0) [Computer software].
-Campinas, SP, Brazil. https://github.com/gcandid0/CytoCount
+Campinas, SP, Brazil. https://doi.org/10.5281/zenodo.24224692
 ```
 </details>
 
@@ -278,7 +279,7 @@ Campinas, SP, Brazil. https://github.com/gcandid0/CytoCount
 ```
 Santos GCM. CytoCount: automated fluorescence cell viability counter and
 morphological segmenter [Internet]. Version 1.1.0. Campinas; 2026. Available from:
-https://github.com/gcandid0/CytoCount
+https://doi.org/10.5281/zenodo.24224692
 ```
 </details>
 
@@ -287,8 +288,8 @@ https://github.com/gcandid0/CytoCount
 
 ```
 G. C. M. Santos, "CytoCount: Automated Fluorescence Cell Viability Counter and
-Morphological Segmenter," Version 1.1.0, Campinas, Brazil, 2026. [Online].
-Available: https://github.com/gcandid0/CytoCount
+Morphological Segmenter," Version 1.1.0, Campinas, Brazil, 2026. doi:
+10.5281/zenodo.24224692. [Online]. Available: https://github.com/gcandid0/CytoCount
 ```
 </details>
 
@@ -302,7 +303,8 @@ Available: https://github.com/gcandid0/CytoCount
   version      = {1.1.0},
   year         = {2026},
   address      = {Campinas, SP, Brasil},
-  url          = {https://github.com/gcandid0/CytoCount}
+  doi          = {10.5281/zenodo.24224692},
+  url          = {https://doi.org/10.5281/zenodo.24224692}
 }
 ```
 </details>
@@ -317,7 +319,8 @@ TI  - CytoCount: Automated Fluorescence Cell Viability Counter and Morphological
 ET  - 1.1.0
 PY  - 2026
 CY  - Campinas, SP, Brasil
-UR  - https://github.com/gcandid0/CytoCount
+DO  - 10.5281/zenodo.24224692
+UR  - https://doi.org/10.5281/zenodo.24224692
 ER  -
 ```
 </details>
