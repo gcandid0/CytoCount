@@ -481,7 +481,7 @@ export interface OpcoesPublicacao {
   idioma: Idioma;
   mostrar_contornos: boolean;
   mostrar_legenda?: boolean;
-  tema_fundo: "escuro" | "claro";
+  tema_fundo: "escuro" | "claro" | "invertido";
   paleta_daltonismo: boolean;
   lado_a_lado: boolean;
   um_por_pixel: number | null;

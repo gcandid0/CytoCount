@@ -25,7 +25,7 @@ export default function ModalExportarPublicacao({
   const [idiomaFig, setIdiomaFig] = useState<Idioma>(idiomaInicial);
   const [mostrarContornos, setMostrarContornos] = useState(true);
   const [mostrarLegenda, setMostrarLegenda] = useState(true);
-  const [temaFundo, setTemaFundo] = useState<"escuro" | "claro">("escuro");
+  const [temaFundo, setTemaFundo] = useState<"escuro" | "claro" | "invertido">("escuro");
   const [paletaDaltonismo, setPaletaDaltonismo] = useState(false);
   const [ladoALado, setLadoALado] = useState(false);
   const [umPorPixel, setUmPorPixel] = useState<string>("0.65");
@@ -118,6 +118,37 @@ export default function ModalExportarPublicacao({
         A figura será exportada com metadados físicos de resolução (DPI), barra inferior dedicada de resumo estatístico TrueType com <b>IC 95% de Wilson</b> (sem cobrir nenhuma célula da imagem) e retículo de escala micrométrica calibrado.
       </p>
 
+      {/* Barra de Presets Rápidos */}
+      <div className="pub-presets-bar" style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          className={`btn-preset-pill ${temaFundo === "escuro" ? "active" : ""}`}
+          onClick={() => setTemaFundo("escuro")}
+        >
+          🌌 Padrão Escuro (#0b1215)
+        </button>
+        <button
+          type="button"
+          className={`btn-preset-pill ${temaFundo === "claro" ? "active" : ""}`}
+          onClick={() => {
+            setTemaFundo("claro");
+            setFormato("png");
+          }}
+        >
+          📊 Slides / Artigos (Fundo Branco #ffffff)
+        </button>
+        <button
+          type="button"
+          className={`btn-preset-pill ${temaFundo === "invertido" ? "active" : ""}`}
+          onClick={() => {
+            setTemaFundo("invertido");
+            setFormato("png");
+          }}
+        >
+          📄 Fluorescência Invertida (P&B / Ink-Saver)
+        </button>
+      </div>
+
       <div className="pub-form-grid">
         <label className="field">
           <span className="field-label">Formato do Arquivo</span>
@@ -163,10 +194,11 @@ export default function ModalExportarPublicacao({
           <select
             className="select"
             value={temaFundo}
-            onChange={(e) => setTemaFundo(e.target.value as "escuro" | "claro")}
+            onChange={(e) => setTemaFundo(e.target.value as "escuro" | "claro" | "invertido")}
           >
-            <option value="escuro">Tema Escuro (#0b1215)</option>
-            <option value="claro">Tema Claro (Fundo Branco para Artigo)</option>
+            <option value="escuro">Tema Escuro (#0b1215 — Padrão Microscopia)</option>
+            <option value="claro">Tema Claro (Fundo Branco Puro #ffffff — Ideal para Slides e Word)</option>
+            <option value="invertido">Fluorescência Invertida (Células Escuras em Fundo Branco — Nature/Science)</option>
           </select>
         </label>
 

@@ -79,6 +79,45 @@ export default function NavegadorResultados({
   const [ordemCelulas, setOrdemCelulas] = useState<OrdemCelulas>("id_asc");
   const [celulaDestacadaId, setCelulaDestacadaId] = useState<number | null>(null);
   const [splitPos, setSplitPos] = useState<number>(50);
+  const [arrastandoCortina, setArrastandoCortina] = useState(false);
+
+  const atualizarPosicaoCortina = useCallback((clientX: number) => {
+    if (!imgRef.current) return;
+    const rect = imgRef.current.getBoundingClientRect();
+    if (rect.width > 0) {
+      const offsetX = clientX - rect.left;
+      const pct = Math.max(
+        0,
+        Math.min(100, Math.round((offsetX / rect.width) * 100))
+      );
+      setSplitPos(pct);
+    }
+  }, []);
+
+  const handleCortinaPointerDown = (e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+    setArrastandoCortina(true);
+    atualizarPosicaoCortina(e.clientX);
+  };
+
+  const handleCortinaPointerMove = (e: React.PointerEvent) => {
+    if (!arrastandoCortina) return;
+    e.stopPropagation();
+    e.preventDefault();
+    atualizarPosicaoCortina(e.clientX);
+  };
+
+  const handleCortinaPointerUp = (e: React.PointerEvent) => {
+    if (arrastandoCortina) {
+      e.stopPropagation();
+      setArrastandoCortina(false);
+      try {
+        (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+      } catch {}
+    }
+  };
 
   // Dimensões naturais da imagem atual (para overlay SVG e conversão de coordenadas)
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1024, h: 1024 });
@@ -1109,11 +1148,53 @@ export default function NavegadorResultados({
                   clipPath: `inset(0 ${100 - splitPos}% 0 0)`,
                 }}
               />
+
+              {/* Badges indicativas flutuantes dos lados A e B */}
+              <div className="split-curtain-pill-left">
+                A · {t.tab_original} ({splitPos}%)
+              </div>
+              <div className="split-curtain-pill-right">
+                B · {t.tab_processed} ({100 - splitPos}%)
+              </div>
+
+              {/* Linha da cortina interativa com arrasto suave direto */}
               <div
-                className="split-curtain-line"
+                className={`split-curtain-line ${arrastandoCortina ? "active" : ""}`}
                 style={{ left: `${splitPos}%` }}
+                onPointerDown={handleCortinaPointerDown}
+                onPointerMove={handleCortinaPointerMove}
+                onPointerUp={handleCortinaPointerUp}
+                onPointerCancel={handleCortinaPointerUp}
+                onDoubleClick={() => setSplitPos(50)}
+                title="Clique e arraste para comparar Original e Processada. Dê dois cliques para centralizar."
               >
-                <span className="split-curtain-handle">A | B</span>
+                <div className="split-curtain-handle">
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
+                    <polyline points="15 18 9 12 15 6" />
+                  </svg>
+                  <svg
+                    width="16"
+                    height="16"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ marginLeft: -8 }}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                </div>
               </div>
             </div>
           )}

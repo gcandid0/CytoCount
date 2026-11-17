@@ -1374,23 +1374,25 @@ def desenhar_legenda_exportacao_pil(
         caixa_y0 = by0 - th - pad_y * 2
         caixa_y1 = by1 + pad_y
 
+        eh_claro = tema_fundo in ("claro", "invertido")
         draw_ov.rounded_rectangle(
             [caixa_x0, caixa_y0, caixa_x1, caixa_y1],
             radius=6,
-            fill=(8, 13, 16, 175),
-            outline=(255, 255, 255, 45),
+            fill=(255, 255, 255, 220) if eh_claro else (8, 13, 16, 175),
+            outline=(203, 213, 225, 255) if eh_claro else (255, 255, 255, 45),
             width=1,
         )
         # Barra horizontal com terminadores verticais sutis (estilo retículo micrométrico)
-        draw_ov.rectangle([bx0, by0, bx1, by1], fill=(255, 255, 255, 245))
-        draw_ov.rectangle([bx0, by0 - 2, bx0 + 2, by1 + 2], fill=(255, 255, 255, 245))
-        draw_ov.rectangle([bx1 - 2, by0 - 2, bx1, by1 + 2], fill=(255, 255, 255, 245))
+        cor_barra = (15, 23, 42, 255) if eh_claro else (255, 255, 255, 245)
+        draw_ov.rectangle([bx0, by0, bx1, by1], fill=cor_barra)
+        draw_ov.rectangle([bx0, by0 - 2, bx0 + 2, by1 + 2], fill=cor_barra)
+        draw_ov.rectangle([bx1 - 2, by0 - 2, bx1, by1 + 2], fill=cor_barra)
 
         draw_ov.text(
             (bx0 + (largura_px - tw) // 2, by0 - th - pad_y - 1),
             txt_escala,
             font=fonte_escala,
-            fill=(248, 250, 252, 255),
+            fill=(15, 23, 42, 255) if eh_claro else (248, 250, 252, 255),
         )
         pil_img = Image.alpha_composite(pil_img, overlay)
 
@@ -1403,11 +1405,11 @@ def desenhar_legenda_exportacao_pil(
     detectados = int(relatorio.get("Detectados", relatorio.get("Total (Azul)", 0)))
     det_fmt = formatar_inteiro_locale(detectados, idioma)
 
-    eh_claro = tema_fundo == "claro"
-    bg_footer = (248, 250, 252) if eh_claro else (11, 18, 21)
-    borda_topo = (203, 213, 225) if eh_claro else (30, 45, 52)
+    eh_claro = tema_fundo in ("claro", "invertido")
+    bg_footer = (255, 255, 255) if eh_claro else (11, 18, 21)
+    borda_topo = (226, 232, 240) if eh_claro else (30, 45, 52)
     txt_primario = (15, 23, 42) if eh_claro else (238, 244, 248)
-    txt_secundario = (100, 116, 139) if eh_claro else (142, 163, 176)
+    txt_secundario = (71, 85, 105) if eh_claro else (142, 163, 176)
 
     cor_azul = (37, 99, 235) if eh_claro else (96, 165, 250)
     cor_verde = ((0, 150, 130) if eh_claro else (0, 230, 180)) if paleta_daltonismo else ((22, 163, 74) if eh_claro else (52, 211, 153))
@@ -1853,6 +1855,9 @@ def gerar_figura_publicacao(
     dpi_val = 600 if int(dpi) >= 600 else 300
     orig_bgr = cv2.cvtColor(original_rgb, cv2.COLOR_RGB2BGR)
 
+    if tema_fundo == "invertido":
+        orig_bgr = 255 - orig_bgr
+
     if mostrar_contornos:
         proc_bgr = desenhar_celulas_de_tabela(orig_bgr, tabela_celulas, paleta_daltonismo=paleta_daltonismo)
     else:
@@ -1872,8 +1877,9 @@ def gerar_figura_publicacao(
         )
         H, W = orig_bgr.shape[:2]
         sep_w = max(8, W // 80)
-        cor_fundo = (248, 250, 252) if tema_fundo == "claro" else (11, 18, 21)
-        cor_texto = (15, 23, 42) if tema_fundo == "claro" else (230, 237, 243)
+        eh_claro = tema_fundo in ("claro", "invertido")
+        cor_fundo = (255, 255, 255) if eh_claro else (11, 18, 21)
+        cor_texto = (15, 23, 42) if eh_claro else (230, 237, 243)
         topo_h = max(36, H // 18)
 
         painel = np.full((H + topo_h, W * 2 + sep_w, 3), cor_fundo, dtype=np.uint8)
