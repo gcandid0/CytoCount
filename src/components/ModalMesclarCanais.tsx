@@ -225,7 +225,7 @@ export default function ModalMesclarCanais({
           ref={inputRef}
           type="file"
           multiple
-          accept=".tif,.tiff,.png,.bmp,.jpg,.jpeg"
+          accept=".tif,.tiff,.png,.bmp,.jpg,.jpeg,.czi,.lif,.nd2,.oib,.oif"
           hidden
           onChange={(e) => {
             if (e.target.files) adicionarArquivos(e.target.files);

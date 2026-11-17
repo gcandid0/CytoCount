@@ -236,7 +236,9 @@ fn listar_imagens_pasta(caminho_pasta: String) -> Result<Vec<ArquivoInfo>, Strin
         return Err("O caminho especificado não é uma pasta válida.".to_string());
     }
 
-    let extensoes = ["bmp", "png", "jpg", "jpeg", "tif", "tiff"];
+    let extensoes = [
+        "bmp", "png", "jpg", "jpeg", "tif", "tiff", "czi", "lif", "nd2", "oib", "oif",
+    ];
     let mut arquivos = Vec::new();
 
     if let Ok(entries) = std::fs::read_dir(path) {

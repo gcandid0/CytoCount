@@ -181,10 +181,59 @@ def test_cytoplasm_segmentation_flow():
     assert res_rep["relatorio"]["Tipo de Análise"] == "citoplasma"
     assert res_rep["relatorio"]["Com Citoplasma"] >= 1
 
+def test_bioformats_and_zstack_mip():
+    import numpy as np
+    import tifffile
+    from core import resolver_dimensoes_microscopia, ler_imagem_flexivel
+
+    # 1. Teste 2D monocromático (H, W)
+    arr_2d = np.full((128, 128), 100, dtype=np.uint8)
+    rgb, (r, g, b) = resolver_dimensoes_microscopia(arr_2d)
+    assert rgb.shape == (128, 128, 3)
+    assert r.shape == (128, 128)
+
+    # 2. Teste 3D Planar (3, H, W)
+    arr_planar = np.zeros((3, 64, 64), dtype=np.uint16)
+    arr_planar[0, :, :] = 500  # DAPI (Azul)
+    arr_planar[1, :, :] = 800  # FITC (Verde)
+    arr_planar[2, :, :] = 200  # PI (Vermelho)
+    rgb, (r, g, b) = resolver_dimensoes_microscopia(arr_planar)
+    assert rgb.shape == (64, 64, 3)
+    assert np.allclose(b, 500)
+    assert np.allclose(g, 800)
+    assert np.allclose(r, 200)
+
+    # 3. Teste 4D Z-Stack (Z=5, C=3, H, W) com Projeção de Intensidade Máxima (MIP)
+    arr_zstack = np.zeros((5, 3, 32, 32), dtype=np.uint16)
+    arr_zstack[2, 0, :, :] = 1200 # pico de foco no plano z=2 (canal 0 = azul)
+    arr_zstack[3, 1, :, :] = 1800 # pico de foco no plano z=3 (canal 1 = verde)
+    rgb, (r, g, b) = resolver_dimensoes_microscopia(arr_zstack)
+    assert rgb.shape == (32, 32, 3)
+    assert b.max() == 1200 # MIP recuperou pico em z=2
+    assert g.max() == 1800 # MIP recuperou pico em z=3
+
+    # 4. Teste TIFF em memória via tifffile
+    buf = io.BytesIO()
+    tifffile.imwrite(buf, arr_planar)
+    rgb_tif, (r_tif, g_tif, b_tif) = ler_imagem_flexivel(buf.getvalue(), "amostra_confocal.tif")
+    assert rgb_tif.shape == (64, 64, 3)
+    assert r_tif.shape == (64, 64)
+
+    # 5. Teste endpoint /api/process com TIFF confocal sintetizado
+    bio_buf = io.BytesIO()
+    synth_confocal = np.zeros((4, 3, 64, 64), dtype=np.uint16)
+    synth_confocal[:, 0, 25:35, 25:35] = 10000
+    tifffile.imwrite(bio_buf, synth_confocal)
+    r_proc = client.post("/api/process", files={"arquivo": ("zstack.tif", bio_buf.getvalue(), "image/tiff")}, data={"idioma": "pt"})
+    assert r_proc.status_code == 200
+    assert r_proc.json()["relatorio"]["Detectados"] >= 1
+
+
 if __name__ == "__main__":
     test_health_routes()
     test_sample_demo()
     test_process_and_reprocess_flow()
     test_cytoplasm_segmentation_flow()
     test_wilson_ci_edge_cases()
+    test_bioformats_and_zstack_mip()
     print("TODOS OS TESTES DE API E WILSON PASSARAM COM SUCESSO!")

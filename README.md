@@ -68,6 +68,7 @@ Construído sob uma arquitetura híbrida moderna que combina **Rust (Tauri v2)**
 
 **Principais recursos:**
 
+- **Leitura Direta de Microscópios Proprietários & Z-Stack MIP** - Ingestão nativa de **Carl Zeiss (.czi)**, **Leica (.lif)**, **Nikon (.nd2)**, **Olympus (.oib, .oif)** e **OME-TIFF / BigTIFF** sem conversão prévia, com projeção de intensidade máxima (MIP) automática em pilhas focais Z.
 - **Contagem Consistente & IC 95% Wilson** - `Detectados = Vivas + Mortas + Indeterminadas` com cálculo de intervalo de confiança estatístico binomial.
 - **Motores Híbridos de Segmentação** - flexibilidade para alternar entre *Watershed Clássico* (bacias hidrográficas por distância euclidiana), *StarDist 2D* (polígonos estrelados convexos) e *Cellpose 2D* (fluxos dinâmicos celulares).
 - **Delimitação Morfológica de Citoplasma** - partição contínua via diagrama de Voronoi geodésico para quantificação de área celular sem invadir células vizinhas.
@@ -210,7 +211,7 @@ Permite ao pesquisador refinar os resultados diretamente na tela:
 
 - **Frontend Desktop:** React 18, TypeScript, Vite, CSS moderno, Lucide Icons, Canvas API
 - **Camada Nativa:** Rust 1.77+, Tauri v2 (IPC assíncrono e segurança de sandbox)
-- **Motor Científico:** Python 3.12, FastAPI, OpenCV, SciPy, scikit-image, NumPy, Pillow, tifffile
+- **Motor Científico:** Python 3.12, FastAPI, OpenCV, SciPy, scikit-image, NumPy, Pillow, tifffile, czifile, readlif, nd2, oiffile, imagecodecs
 - **Empacotamento:** PyInstaller (sidecar independente sem dependência de Python no sistema host) e WiX Toolset / NSIS
 
 <p align="right"><a href="#topo">↑ voltar ao topo</a></p>

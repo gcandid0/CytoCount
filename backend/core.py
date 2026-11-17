@@ -22,6 +22,28 @@ try:
 except ImportError:
     tifffile = None
 
+try:
+    import czifile
+except ImportError:
+    czifile = None
+
+try:
+    import readlif
+    from readlif.reader import LifFile
+except ImportError:
+    readlif = None
+    LifFile = None
+
+try:
+    import nd2
+except ImportError:
+    nd2 = None
+
+try:
+    import oiffile
+except ImportError:
+    oiffile = None
+
 APP_VERSION = "1.2.0"
 
 # =========================================================================
@@ -229,60 +251,155 @@ def normalizar_robusto(canal_float: np.ndarray, p_baixo: float = 0.5, p_alto: fl
     return canal_norm.astype(np.uint8)
 
 
+def resolver_dimensoes_microscopia(arr: np.ndarray) -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
+    """
+    Resolve matrizes multi-dimensionais de microscopia confocal e fluorescência (Z-stacks, multi-canal, planar)
+    para o formato canônico:
+      - rgb_8u: (H, W, 3) uint8 para renderização visual
+      - (r_float, g_float, b_float): tupla de arrays 2D (H, W) float32 de alta profundidade dinâmica
+    Aplica Projeção de Intensidade Máxima (MIP) ao longo de eixos Z automaticamente.
+    """
+    squeezed = np.squeeze(arr)
+
+    # 1. Monocromático 2D (H, W)
+    if squeezed.ndim == 2:
+        c_float = squeezed.astype(np.float32)
+        c_8u = normalizar_robusto(c_float) if squeezed.dtype != np.uint8 else squeezed
+        rgb_8u = np.stack([c_8u, c_8u, c_8u], axis=-1)
+        return rgb_8u, (c_float, c_float, c_float)
+
+    # 2. 3D: (C, H, W) vs (H, W, C) vs (Z, H, W)
+    if squeezed.ndim == 3:
+        # Formato planar de canais (C, H, W) onde C <= 4
+        if squeezed.shape[0] in (2, 3, 4) and squeezed.shape[1] > 16 and squeezed.shape[2] > 16:
+            squeezed = np.transpose(squeezed, (1, 2, 0))
+        # Z-stack monocromático (Z, H, W) onde Z > 4
+        elif squeezed.shape[0] > 4 and squeezed.shape[1] > 16 and squeezed.shape[2] > 16:
+            mip = squeezed.max(axis=0).astype(np.float32)
+            mip_8u = normalizar_robusto(mip)
+            rgb_8u = np.stack([mip_8u, mip_8u, mip_8u], axis=-1)
+            return rgb_8u, (mip, mip, mip)
+
+        # Formato canônico 3D (H, W, C)
+        if squeezed.ndim == 3 and squeezed.shape[2] in (1, 2, 3, 4):
+            ch = squeezed.shape[2]
+            if ch == 1:
+                c_f = squeezed[..., 0].astype(np.float32)
+                c_8u = normalizar_robusto(c_f) if squeezed.dtype != np.uint8 else squeezed[..., 0]
+                return np.stack([c_8u, c_8u, c_8u], axis=-1), (c_f, c_f, c_f)
+            elif ch == 2:
+                # 2 canais: Canal 0 = DAPI (Azul), Canal 1 = FITC (Verde)
+                c0 = squeezed[..., 0].astype(np.float32)
+                c1 = squeezed[..., 1].astype(np.float32)
+                z = np.zeros_like(c0)
+                rgb_8u = np.stack([normalizar_robusto(z), normalizar_robusto(c1), normalizar_robusto(c0)], axis=-1)
+                return rgb_8u, (z, c1, c0)
+            else:
+                # 3 ou 4 canais: Canal 0 = DAPI/Azul, Canal 1 = FITC/Verde, Canal 2 = PI/Vermelho
+                # Para RGB canônico: R = Canal 2 (PI), G = Canal 1 (FITC), B = Canal 0 (DAPI)
+                c0 = squeezed[..., 0].astype(np.float32)
+                c1 = squeezed[..., 1].astype(np.float32)
+                c2 = squeezed[..., 2].astype(np.float32)
+                if squeezed.dtype == np.uint8:
+                    rgb_8u = np.stack([c2.astype(np.uint8), c1.astype(np.uint8), c0.astype(np.uint8)], axis=-1)
+                else:
+                    rgb_8u = np.stack([normalizar_robusto(c2), normalizar_robusto(c1), normalizar_robusto(c0)], axis=-1)
+                return rgb_8u, (c2, c1, c0)
+
+    # 3. 4D: (Z, C, H, W) ou (C, Z, H, W)
+    if squeezed.ndim == 4:
+        # Se canal for segundo eixo (Z, C, H, W) -> projeta Z em eixo 0
+        if squeezed.shape[1] in (2, 3, 4):
+            mip_c = squeezed.max(axis=0) # resulta em (C, H, W)
+            return resolver_dimensoes_microscopia(mip_c)
+        # Se canal for primeiro eixo (C, Z, H, W) -> projeta Z em eixo 1
+        elif squeezed.shape[0] in (2, 3, 4):
+            mip_c = squeezed.max(axis=1) # resulta em (C, H, W)
+            return resolver_dimensoes_microscopia(mip_c)
+        else:
+            return resolver_dimensoes_microscopia(squeezed.max(axis=0))
+
+    # 4. Hiper-pilhas (>= 5D, como séries CZI com tempo/visão)
+    while squeezed.ndim > 4:
+        squeezed = squeezed.max(axis=0)
+    return resolver_dimensoes_microscopia(squeezed)
+
+
 def ler_imagem_flexivel(file_bytes: bytes, nome_arquivo: str = "") -> tuple[np.ndarray, tuple[np.ndarray, np.ndarray, np.ndarray]]:
     """
-    Lê imagens 8-bit, 16-bit ou TIFF multicanal sem perda de faixa dinâmica.
-    Retorna:
-      - original_rgb_8u: imagem RGB uint8 para exibição em tela
-      - (r_float, g_float, b_float): canais em float32 preservando profundidade de 16 bits quando disponível
+    Decodificador universal de imagens de microscopia de fluorescência e confocal.
+    Suporta formatos abertos e proprietários de fabricantes com preservação integral de 16-bit e Z-Stacks:
+      - Carl Zeiss (.czi)
+      - Leica Microsystems (.lif)
+      - Nikon Instruments (.nd2)
+      - Olympus / Evident FluoView (.oib, .oif)
+      - OME-TIFF e BigTIFF (.tif, .tiff)
+      - Formatos padrão (.png, .bmp, .jpg, .jpeg)
     """
     nome_lower = (nome_arquivo or "").lower()
-    eh_tiff = nome_lower.endswith((".tif", ".tiff"))
 
-    if eh_tiff and tifffile is not None:
+    # 1. Carl Zeiss (.czi)
+    if nome_lower.endswith(".czi") and czifile is not None:
         try:
-            arr = tifffile.imread(io.BytesIO(file_bytes))
-            if arr is not None and arr.ndim >= 2:
-                # Trata dimensões (C, H, W) vs (H, W, C) vs (H, W)
-                if arr.ndim == 2:
-                    c_float = arr.astype(np.float32)
-                    c_8u = normalizar_robusto(c_float)
-                    rgb_8u = np.stack([c_8u, c_8u, c_8u], axis=-1)
-                    return rgb_8u, (c_float, c_float, c_float)
-                elif arr.ndim == 3:
-                    # Se a primeira dimensão for pequena (2, 3 ou 4 canais) e H, W maiores: formato planar (C, H, W)
-                    if arr.shape[0] in (2, 3, 4) and arr.shape[1] > 8 and arr.shape[2] > 8:
-                        arr = np.transpose(arr, (1, 2, 0))
-                    ch = arr.shape[2]
-                    if ch == 1:
-                        c_float = arr[..., 0].astype(np.float32)
-                        c_8u = normalizar_robusto(c_float)
-                        rgb_8u = np.stack([c_8u, c_8u, c_8u], axis=-1)
-                        return rgb_8u, (c_float, c_float, c_float)
-                    elif ch == 2:
-                        # 2 canais: assume canal 0 = DAPI/Azul ou Verde, canal 1 = Verde/Vermelho
-                        c0 = arr[..., 0].astype(np.float32)
-                        c1 = arr[..., 1].astype(np.float32)
-                        z = np.zeros_like(c0)
-                        rgb_8u = np.stack([normalizar_robusto(z), normalizar_robusto(c1), normalizar_robusto(c0)], axis=-1)
-                        return rgb_8u, (z, c1, c0)
-                    else:
-                        r_f = arr[..., 0].astype(np.float32)
-                        g_f = arr[..., 1].astype(np.float32)
-                        b_f = arr[..., 2].astype(np.float32)
-                        if arr.dtype == np.uint8:
-                            rgb_8u = arr[..., :3].copy()
-                        else:
-                            rgb_8u = np.stack([
-                                normalizar_robusto(r_f),
-                                normalizar_robusto(g_f),
-                                normalizar_robusto(b_f),
-                            ], axis=-1)
-                        return rgb_8u, (r_f, g_f, b_f)
+            with czifile.CziFile(io.BytesIO(file_bytes)) as czi:
+                arr = czi.asarray()
+                if arr is not None and arr.size > 0:
+                    return resolver_dimensoes_microscopia(arr)
         except Exception:
             pass
 
-    # Tentativa via OpenCV IMREAD_UNCHANGED para preservar 16-bit PNG/TIFF
+    # 2. Leica Microsystems (.lif)
+    if nome_lower.endswith(".lif") and LifFile is not None:
+        try:
+            lif = LifFile(io.BytesIO(file_bytes))
+            # Obtém a maior imagem/série disponível
+            n_imgs = len(lif.image_list)
+            if n_imgs > 0:
+                img = lif.get_image(0)
+                n_ch = max(1, int(img.channels))
+                n_z = max(1, int(img.dims.z))
+                canais_proj = []
+                for c in range(n_ch):
+                    if n_z > 1:
+                        frames = [np.array(img.get_frame(z=z, c=c)) for z in range(n_z)]
+                        canais_proj.append(np.maximum.reduce(frames))
+                    else:
+                        canais_proj.append(np.array(img.get_frame(z=0, c=c)))
+                arr_lif = np.stack(canais_proj, axis=0) # (C, H, W)
+                return resolver_dimensoes_microscopia(arr_lif)
+        except Exception:
+            pass
+
+    # 3. Nikon Instruments (.nd2)
+    if nome_lower.endswith(".nd2") and nd2 is not None:
+        try:
+            with nd2.ND2File(io.BytesIO(file_bytes)) as f:
+                arr = f.asarray()
+                if arr is not None and arr.size > 0:
+                    return resolver_dimensoes_microscopia(arr)
+        except Exception:
+            pass
+
+    # 4. Olympus / Evident FluoView (.oib, .oif)
+    if nome_lower.endswith((".oib", ".oif")) and oiffile is not None:
+        try:
+            with oiffile.OifFile(io.BytesIO(file_bytes)) as oif:
+                arr = oif.asarray()
+                if arr is not None and arr.size > 0:
+                    return resolver_dimensoes_microscopia(arr)
+        except Exception:
+            pass
+
+    # 5. OME-TIFF / TIFF Multicanal / BigTIFF
+    if nome_lower.endswith((".tif", ".tiff")) and tifffile is not None:
+        try:
+            arr = tifffile.imread(io.BytesIO(file_bytes))
+            if arr is not None and arr.size > 0:
+                return resolver_dimensoes_microscopia(arr)
+        except Exception:
+            pass
+
+    # 6. OpenCV IMREAD_UNCHANGED para 16-bit PNG/TIFF/BMP
     buf_np = np.frombuffer(file_bytes, dtype=np.uint8)
     decoded = cv2.imdecode(buf_np, cv2.IMREAD_UNCHANGED)
     if decoded is not None:
@@ -306,9 +423,7 @@ def ler_imagem_flexivel(file_bytes: bytes, nome_arquivo: str = "") -> tuple[np.n
                 ], axis=-1)
             return rgb_8u, (r_f, g_f, b_f)
 
-    # Fallback PIL
-    pil_img = Image.open(io.BytesIO(file_bytes))
-    pil_img.verify()
+    # 7. Fallback PIL
     pil_img = Image.open(io.BytesIO(file_bytes))
     if pil_img.mode != "RGB":
         pil_img = pil_img.convert("RGB")

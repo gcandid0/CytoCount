@@ -3,7 +3,19 @@ import { Idioma, TEXTOS } from "../lib/i18n";
 import { selecionarPastaEListarImagens } from "../lib/api";
 import { FolderOpenIcon, LayersIcon, PlusCircleIcon, XIcon } from "./Icons";
 
-const EXTENSOES_ACEITAS = [".bmp", ".png", ".jpg", ".jpeg", ".tif", ".tiff"];
+const EXTENSOES_ACEITAS = [
+  ".bmp",
+  ".png",
+  ".jpg",
+  ".jpeg",
+  ".tif",
+  ".tiff",
+  ".czi",
+  ".lif",
+  ".nd2",
+  ".oib",
+  ".oif",
+];
 
 interface Props {
   onArquivosSelecionados: (arquivos: File[]) => void;
@@ -53,7 +65,7 @@ export default function Uploader({
       const arquivosNativos = await selecionarPastaEListarImagens();
       if (arquivosNativos !== null) {
         if (arquivosNativos.length === 0) {
-          onErroToast?.("Nenhuma imagem compatível (.png, .tif, .bmp, .jpg) encontrada na pasta.");
+          onErroToast?.("Nenhuma imagem compatível (.png, .tif, .czi, .lif, .nd2, .oib, .oif, .bmp, .jpg) encontrada na pasta.");
         } else {
           adicionarLista(arquivosNativos);
         }
