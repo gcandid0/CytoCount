@@ -437,7 +437,7 @@ export default function NavegadorResultados({
   const exportarMacroFiji = async () => {
     try {
       const linhas = [
-        `// CytoCount v1.1.0 - Fiji / ImageJ ROI Manager Macro`,
+        `// CytoCount v1.2.0 - Fiji / ImageJ ROI Manager Macro`,
         `// Sample: ${sel.relatorio.Arquivo} | Total Detected: ${celulas.length}`,
         `roiManager("Reset");`,
         `setBatchMode(true);`,
