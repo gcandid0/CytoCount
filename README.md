@@ -36,7 +36,7 @@
 
 </div>
 
-<p align="center"><sub>Desenvolvido no âmbito de pesquisa científica no <strong>Centro Nacional de Pesquisa em Energia e Materiais (CNPEM)</strong> · Campinas - SP, Brasil</sub></p>
+<p align="center"><sub>Desenvolvido por <strong>Gabriel Candido Messias dos Santos</strong> · Campinas - SP, Brasil</sub></p>
 
 ## Índice
 
@@ -235,7 +235,7 @@ Dúvidas, sugestões de aprimoramento ou relatos de inconsistências podem ser e
 
 ## Autores
 
-Projeto desenvolvido no âmbito de pesquisa científica no **Centro Nacional de Pesquisa em Energia e Materiais (CNPEM)**, Campinas - SP, Brasil:
+Projeto desenvolvido por:
 
 - **Gabriel Candido Messias dos Santos** — [gabrielcandidomds@gmail.com](mailto:gabrielcandidomds@gmail.com) · [Lattes](http://lattes.cnpq.br/6696786236047929) · [LinkedIn](https://www.linkedin.com/in/gabriel-candido-235637226/)
 
@@ -257,9 +257,8 @@ Caso o CytoCount seja utilizado na geração de dados para artigos, dissertaçõ
 
 ```
 SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell
-Viability Counter and Morphological Segmenter. Versão 1.1.0. Campinas: Centro
-Nacional de Pesquisa em Energia e Materiais (CNPEM), 2026. Disponível em:
-https://github.com/gcandid0/CytoCount.
+Viability Counter and Morphological Segmenter. Versão 1.1.0. Campinas, 2026.
+Disponível em: https://github.com/gcandid0/CytoCount.
 ```
 </details>
 
@@ -269,8 +268,7 @@ https://github.com/gcandid0/CytoCount.
 ```
 Santos, G. C. M. (2026). CytoCount: Automated fluorescence cell viability
 counter and morphological segmenter (Version 1.1.0) [Computer software].
-Centro Nacional de Pesquisa em Energia e Materiais (CNPEM).
-https://github.com/gcandid0/CytoCount
+Campinas, SP, Brazil. https://github.com/gcandid0/CytoCount
 ```
 </details>
 
@@ -279,8 +277,7 @@ https://github.com/gcandid0/CytoCount
 
 ```
 Santos GCM. CytoCount: automated fluorescence cell viability counter and
-morphological segmenter [Internet]. Version 1.1.0. Campinas: Centro Nacional de
-Pesquisa em Energia e Materiais (CNPEM); 2026. Available from:
+morphological segmenter [Internet]. Version 1.1.0. Campinas; 2026. Available from:
 https://github.com/gcandid0/CytoCount
 ```
 </details>
@@ -290,9 +287,8 @@ https://github.com/gcandid0/CytoCount
 
 ```
 G. C. M. Santos, "CytoCount: Automated Fluorescence Cell Viability Counter and
-Morphological Segmenter," Version 1.1.0, Centro Nacional de Pesquisa em
-Energia e Materiais (CNPEM), Campinas, Brazil, 2026. [Online]. Available:
-https://github.com/gcandid0/CytoCount
+Morphological Segmenter," Version 1.1.0, Campinas, Brazil, 2026. [Online].
+Available: https://github.com/gcandid0/CytoCount
 ```
 </details>
 
@@ -305,7 +301,6 @@ https://github.com/gcandid0/CytoCount
   title        = {{CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter}},
   version      = {1.1.0},
   year         = {2026},
-  institution  = {Centro Nacional de Pesquisa em Energia e Materiais (CNPEM)},
   address      = {Campinas, SP, Brasil},
   url          = {https://github.com/gcandid0/CytoCount}
 }
@@ -321,7 +316,6 @@ AU  - Santos, Gabriel Candido Messias dos
 TI  - CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter
 ET  - 1.1.0
 PY  - 2026
-PB  - Centro Nacional de Pesquisa em Energia e Materiais (CNPEM)
 CY  - Campinas, SP, Brasil
 UR  - https://github.com/gcandid0/CytoCount
 ER  -
@@ -345,7 +339,7 @@ Contribuições da comunidade científica são muito bem-vindas. Antes de submet
   <img src="./assets/logo.png" alt="CytoCount" width="48">
   <br>
   <sub>
-    <strong>CytoCount</strong> · desenvolvido no <a href="https://cnpem.br/">Centro Nacional de Pesquisa em Energia e Materiais (CNPEM)</a><br>
+    <strong>CytoCount</strong> · por Gabriel Candido Messias dos Santos<br>
     <a href="https://github.com/gcandid0/CytoCount">Repositório GitHub</a> ·
     <a href="http://lattes.cnpq.br/6696786236047929">Currículo Lattes</a> ·
     <a href="https://www.linkedin.com/in/gabriel-candido-235637226/">LinkedIn</a> ·
