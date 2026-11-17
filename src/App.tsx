@@ -1269,24 +1269,26 @@ export default function App() {
             idioma={idioma}
           />
 
-          <button
-            id="processBtn"
-            className="btn-primary"
-            onClick={processarLote}
-            disabled={!podeProcessar}
-          >
-            <span>{processando ? t.btn_processing : t.btn_process}</span>
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <path
-                d="M5 12h14M13 6l6 6-6 6"
-                stroke="currentColor"
-                strokeWidth="2"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-              />
-            </svg>
-          </button>
+          <div className="sidebar-process-dock">
+            <button
+              id="processBtn"
+              className="btn-primary"
+              onClick={processarLote}
+              disabled={!podeProcessar}
+            >
+              <span>{processando ? t.btn_processing : t.btn_process}</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path
+                  d="M5 12h14M13 6l6 6-6 6"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </button>
+          </div>
         </aside>
 
         <main className="content">
