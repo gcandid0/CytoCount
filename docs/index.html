@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CytoCount — Contagem Celular & Segmentação de Citoplasma de Alta Performance</title>
+  
+  <meta name="description" content="Software desktop nativo e offline para contagem celular automatizada, viabilidade celular tri-canal e segmentação morfométrica de citoplasma em microscopia de fluorescência.">
+  <meta property="og:title" content="CytoCount — High-Throughput Automated Cell Counting & Cytoplasmic Morphometry">
+  <meta property="og:description" content="Segmentação secundária de citoplasma Voronoi, análise de viabilidade tri-canal, motores Watershed/StarDist/Cellpose e exportação para artigos em 300 DPI.">
+  <meta property="og:image" content="https://gcandid0.github.io/CytoCount/assets/demo-slider.gif">
+  <meta property="og:url" content="https://gcandid0.github.io/CytoCount">
+  <meta name="theme-color" content="#070c10">
+  
+  <link rel="icon" type="image/png" href="assets/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Site Navigation Header -->
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a href="#" class="brand">
+        <img src="assets/logo.png" alt="CytoCount Logo" class="brand-logo">
+        <span class="brand-text">CytoCount</span>
+        <span class="brand-badge">v1.1.0</span>
+      </a>
+
+      <nav>
+        <ul class="nav-links">
+          <li><a href="#demonstracao" class="nav-link">Demonstrações (GIFs)</a></li>
+          <li><a href="#recursos" class="nav-link">Recursos</a></li>
+          <li><a href="#citoplasma" class="nav-link">Citoplasma</a></li>
+          <li><a href="#publicacao" class="nav-link">Publicações</a></li>
+          <li><a href="#citacao" class="nav-link">Citação DOI</a></li>
+          <li><a href="#downloads" class="nav-link">Downloads</a></li>
+        </ul>
+      </nav>
+
+      <div class="nav-actions">
+        <a href="https://doi.org/10.5281/zenodo.24224692" target="_blank" rel="noopener" title="Zenodo Persistent DOI">
+          <img src="https://zenodo.org/badge/1457897635.svg" alt="DOI" style="height: 22px; vertical-align: middle;">
+        </a>
+        <a href="https://github.com/gcandid0/CytoCount" target="_blank" rel="noopener" class="btn-github">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
+          </svg>
+          <span>GitHub</span>
+        </a>
+      </div>
+    </div>
+  </header>
+
+  <!-- Hero Section -->
+  <section class="hero">
+    <div class="container">
+      <div class="hero-pill">
+        <span>✨ Novidade v1.1.0</span>
+        <span>•</span>
+        <span>Segmentação de Citoplasma, Slider A|B e Auto-Updater</span>
+      </div>
+
+      <h1 class="hero-title">
+        Contagem Celular Automatizada & <br>
+        <span class="gradient-text">Morfometria de Citoplasma de Alta Precisão</span>
+      </h1>
+
+      <p class="hero-subtitle">
+        Software desktop nativo e ultrarrápido (Rust + Python) para microscopia confocal e fluorescência.
+        Segmentação de núcleos e citoplasma (verde), viabilidade multi-canal com IC 95% Wilson e exportação em 300 DPI pronta para publicação científica.
+      </p>
+
+      <!-- Quick Download Links Grid -->
+      <div class="download-card-grid" id="downloads">
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64-setup.exe" class="download-btn-card primary" title="Baixar instalador padrão executável">
+          <div class="download-icon-box">🪟</div>
+          <div class="download-info">
+            <div class="download-title">
+              Instalador Windows (.exe)
+              <span class="download-tag">Recomendado</span>
+            </div>
+            <div class="download-meta">124 MB · Setup Guiado NSIS · 64-bit</div>
+          </div>
+        </a>
+
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64_en-US.msi" class="download-btn-card" title="Baixar instalador pacote MSI corporativo">
+          <div class="download-icon-box">📦</div>
+          <div class="download-info">
+            <div class="download-title">Instalador MSI (.msi)</div>
+            <div class="download-meta">125 MB · Microsoft WiX · Acadêmico/TI</div>
+          </div>
+        </a>
+
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64_Portable.zip" class="download-btn-card" title="Baixar pacote portátil zip sem instalação">
+          <div class="download-icon-box">⚡</div>
+          <div class="download-info">
+            <div class="download-title">Pacote Portátil (.zip)</div>
+            <div class="download-meta">125 MB · Execução Direta (Pendrive/USB)</div>
+          </div>
+        </a>
+      </div>
+
+      <div class="hero-meta-row">
+        <span class="hero-meta-item">🔒 100% Offline & Local (Sem envio para nuvem)</span>
+        <span class="hero-meta-item">•</span>
+        <span class="hero-meta-item">📜 Licença MIT Open Source</span>
+        <span class="hero-meta-item">•</span>
+        <span class="hero-meta-item">🔄 Auto-Atualização Integrada (Ed25519)</span>
+        <span class="hero-meta-item">•</span>
+        <a href="https://github.com/gcandid0/CytoCount/releases" target="_blank" rel="noopener" style="color: var(--cyan); text-decoration: none;">Ver todas as versões no GitHub →</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- Visual Demonstrations Section (GIFs) -->
+  <section class="showcase-section" id="demonstracao">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-pill">Demonstração Interativa</span>
+        <h2 class="section-title">Veja o CytoCount em Ação</h2>
+        <p class="section-desc">
+          Processamento vetorial em tempo real com inspeção visual profunda da segmentação celular.
+        </p>
+      </div>
+
+      <div class="gif-grid">
+        <!-- Card 1: Slider A|B -->
+        <div class="gif-card">
+          <div class="gif-media-wrap">
+            <div class="gif-badge-floating">
+              <span class="dot-live"></span> Cortina Deslizante A|B
+            </div>
+            <img src="assets/demo-slider.gif" alt="Slider Cortina Antes e Depois CytoCount" loading="lazy">
+          </div>
+          <div class="gif-body">
+            <h3 class="gif-title">Inspeção "Antes / Depois"</h3>
+            <p class="gif-desc">
+              Arraste a cortina vertical interativa para comparar instantaneamente o canal original fluorescente puro e os contornos celulares segmentados em tempo real.
+            </p>
+            <div class="gif-stats-row">
+              <div>Modo: <span class="gif-stat-val">Split A/B Dinâmico</span></div>
+              <div>Precisão: <span class="gif-stat-val">Subpixel</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 2: Citoplasma Verde -->
+        <div class="gif-card" id="citoplasma">
+          <div class="gif-media-wrap">
+            <div class="gif-badge-floating">
+              <span class="dot-live"></span> Morfometria Celular
+            </div>
+            <img src="assets/demo-citoplasma.gif" alt="Segmentação de Citoplasma Voronoi CytoCount" loading="lazy">
+          </div>
+          <div class="gif-body">
+            <h3 class="gif-title">Segmentação de Citoplasma (Verde)</h3>
+            <p class="gif-desc">
+              Identificação secundária Voronoi guiada pelos núcleos (DAPI) com expansão restrita ao sinal citoplasmático verde, calculando a área nuclear, citoplasmática e a razão N:C.
+            </p>
+            <div class="gif-stats-row">
+              <div>Núcleos: <span class="gif-stat-val">878</span></div>
+              <div>Com Citoplasma: <span class="gif-stat-val">84,1%</span></div>
+              <div>Razão N:C: <span class="gif-stat-val">1,13</span></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Card 3: Viabilidade Celular -->
+        <div class="gif-card">
+          <div class="gif-media-wrap">
+            <div class="gif-badge-floating">
+              <span class="dot-live"></span> Tri-Canal DAPI/FITC/PI
+            </div>
+            <img src="assets/demo-viabilidade.gif" alt="Análise de Viabilidade Celular CytoCount" loading="lazy">
+          </div>
+          <div class="gif-body">
+            <h3 class="gif-title">Análise de Viabilidade Rigorosa</h3>
+            <p class="gif-desc">
+              Classificação multi-canal (Vivas em verde, Mortas em amarelo, Indeterminadas) com intervalo de confiança estatístico de Wilson a 95% e auditoria de edições manuais.
+            </p>
+            <div class="gif-stats-row">
+              <div>Estatística: <span class="gif-stat-val">IC 95% Wilson</span></div>
+              <div>Controle: <span class="gif-stat-val">Anti-Vazamento</span></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features Section (Bento Grid) -->
+  <section class="features-section" id="recursos">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-pill">Arquitetura Científica</span>
+        <h2 class="section-title">Construído para Pesquisa em Nível de Artigo</h2>
+        <p class="section-desc">
+          Unindo velocidade de processamento nativo em C++/Rust à sofisticação estatística de bioimagem.
+        </p>
+      </div>
+
+      <div class="bento-grid">
+        <div class="bento-card">
+          <div class="bento-icon">🧬</div>
+          <h3 class="bento-title">Citoplasma Separado de Viabilidade</h3>
+          <p class="bento-text">
+            Dois modos analíticos independentes na interface. O modo Citoplasma foca estritamente em morfometria e corpos celulares verdes, sem interferir no pipeline de viabilidade.
+          </p>
+        </div>
+
+        <div class="bento-card">
+          <div class="bento-icon">⚙️</div>
+          <h3 class="bento-title">3 Motores de Segmentação</h3>
+          <p class="bento-text">
+            Escolha entre <strong>Watershed Clássico</strong> (alta velocidade), <strong>StarDist 2D</strong> (polígonos estrelados e NMS) e <strong>Cellpose 2D</strong> (fluxo vetorial de gradientes).
+          </p>
+        </div>
+
+        <div class="bento-card">
+          <div class="bento-icon">📐</div>
+          <h3 class="bento-title">Retículo Micrométrico de Escala</h3>
+          <p class="bento-text">
+            Calibre a resolução óptica em &micro;m/pixel com régua automática na exportação para publicação, garantindo conformidade com padrões de submissão da Nature, Elsevier e Cell.
+          </p>
+        </div>
+
+        <div class="bento-card span-2">
+          <div class="bento-icon">📊</div>
+          <h3 class="bento-title">Morfometria de Precisão: Razão Núcleo-Citoplasma (N:C)</h3>
+          <p class="bento-text">
+            A expansão secundária por Voronoi/Watershed geodésico impede que células adjacentes invadam o domínio vizinho. Cada célula recebe medidas exatas de área nuclear (px² e &micro;m²), área citoplasmática e proporção N:C, exportáveis em tabelas CSV prontas para análise no R e GraphPad Prism.
+          </p>
+        </div>
+
+        <div class="bento-card">
+          <div class="bento-icon">🛡️</div>
+          <h3 class="bento-title">100% Offline & Seguro</h3>
+          <p class="bento-text">
+            Processamento totalmente local. Dados de microscopia confidenciais nunca saem do seu computador ou rede do laboratório.
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Publication Presentation Showcase -->
+  <section class="pub-section" id="publicacao">
+    <div class="container">
+      <div class="pub-box">
+        <div class="pub-media">
+          <img src="assets/apresentacao-slides-branco.jpg" alt="Exportação para Apresentações e Slides em Fundo Branco Puro" loading="lazy">
+        </div>
+        <div class="pub-content">
+          <span class="section-pill" style="align-self: flex-start;">Modo Apresentação</span>
+          <h2 class="pub-title">Exportação com Fundo Branco Puro (#ffffff) para Slides e Artigos</h2>
+          <p style="color: var(--text-muted); font-size: 1rem; line-height: 1.6;">
+            Chega de colar imagens escuras com molduras cinzas no PowerPoint ou no Word. O CytoCount v1.1.0 possui presets rápidos de exportação em 1 clique:
+          </p>
+          <ul class="pub-list">
+            <li><strong>Fundo Branco Puro (#ffffff):</strong> Perfeito para slides claros, pôsteres de congressos e documentos em PDF.</li>
+            <li><strong>Fundo Escuro Original (#0b1215):</strong> Para apresentações em salas escuras e telas OLED.</li>
+            <li><strong>Fluorescência Invertida (P&B):</strong> Contornos de alto contraste ideais para impressão monocromática econômica (Ink-Saver).</li>
+            <li><strong>Resolução de Publicação (300 DPI):</strong> Gráficos e contornos vetorizados com qualidade editorial.</li>
+          </ul>
+          <a href="https://github.com/gcandid0/CytoCount/releases/latest" class="download-btn-card primary" style="max-width: 280px;">
+            <div class="download-icon-box">⬇️</div>
+            <div class="download-info">
+              <div class="download-title">Baixar CytoCount v1.1.0</div>
+              <div class="download-meta">Windows 64-bit</div>
+            </div>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Citation Section -->
+  <section class="pub-section" id="citacao" style="padding-top: 0;">
+    <div class="container">
+      <div class="section-head">
+        <span class="section-pill">Reprodutibilidade & Citação</span>
+        <h2 class="section-title">Identificador Persistente & DOI Zenodo</h2>
+        <p class="section-desc">
+          Cite o CytoCount em sua dissertação, tese ou artigo científico utilizando o DOI oficial indexado no Zenodo/CERN:
+        </p>
+      </div>
+
+      <div class="citation-box">
+        <div class="citation-header">
+          <span class="citation-title">Citação em formato BibTeX</span>
+          <button class="btn-copy" id="btn-copy-citation">Copiar BibTeX</button>
+        </div>
+        <pre class="citation-code" id="citation-code">@software{candido_2026_cytocount,
+  author       = {Cândido, Gabriel},
+  title        = {{CytoCount: High-Throughput Automated Cell Counting, 
+                  Cytoplasmic Morphometry and Viability Analysis for 
+                  Fluorescence Microscopy}},
+  month        = nov,
+  year         = 2026,
+  publisher    = {Zenodo},
+  version      = {v1.1.0},
+  doi          = {10.5281/zenodo.24224693},
+  url          = {https://doi.org/10.5281/zenodo.24224693}
+}</pre>
+      </div>
+    </div>
+  </section>
+
+  <!-- Footer -->
+  <footer class="site-footer">
+    <div class="container">
+      <div class="footer-grid">
+        <div>
+          <div class="brand">
+            <img src="assets/logo.png" alt="CytoCount" class="brand-logo" style="width: 28px; height: 28px;">
+            <span class="brand-text" style="font-size: 1.1rem;">CytoCount</span>
+          </div>
+          <p class="footer-brand-desc">
+            Ferramenta científica aberta de alta precisão para contagem celular, viabilidade e morfometria citoplasmática em microscopia.
+          </p>
+          <div style="margin-top: 16px;">
+            <a href="https://doi.org/10.5281/zenodo.24224692" target="_blank" rel="noopener">
+              <img src="https://zenodo.org/badge/1457897635.svg" alt="DOI">
+            </a>
+          </div>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Downloads Oficiais</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64-setup.exe">Instalador NSIS (.exe)</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64_en-US.msi">Instalador MSI (.msi)</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.1.0_x64_Portable.zip">Pacote Portátil (.zip)</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/releases">Todas as Releases</a></li>
+          </ul>
+        </div>
+
+        <div>
+          <h4 class="footer-col-title">Comunidade & Código</h4>
+          <ul class="footer-links">
+            <li><a href="https://github.com/gcandid0/CytoCount" target="_blank" rel="noopener">Repositório GitHub</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/issues" target="_blank" rel="noopener">Reportar Problemas (Issues)</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Como Contribuir</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/LICENSE" target="_blank" rel="noopener">Licença MIT</a></li>
+          </ul>
+        </div>
+      </div>
+
+      <div class="footer-bottom">
+        <div>&copy; 2026 Gabriel Cândido. Distribuído sob a Licença MIT.</div>
+        <div>Desenvolvido com Tauri v2, Rust, React, Vite & Python.</div>
+      </div>
+    </div>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>

@@ -16,6 +16,7 @@
 <br/>
 
 <a href="https://doi.org/10.5281/zenodo.24224692"><img src="https://zenodo.org/badge/1457897635.svg" alt="DOI"></a>
+<a href="https://gcandid0.github.io/CytoCount"><img src="https://img.shields.io/badge/Online%20Demo-gcandid0.github.io%2FCytoCount-00d4ff?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Live Demo Site"></a>
 <a href="https://tauri.app/"><img src="https://img.shields.io/badge/Tauri%20v2-Rust-FFC131?style=for-the-badge&logo=tauri&logoColor=black" alt="Tauri v2"></a>
 <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python%203.12-FastAPI%20%7C%20OpenCV-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.12"></a>
 <a href="https://react.dev/"><img src="https://img.shields.io/badge/React%2018-TypeScript-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React 18"></a>
@@ -56,6 +57,8 @@
 - [Contributing](#contributing)
 
 ---
+
+> 🌐 **Live Demo & Online Downloads:** Visit [**https://gcandid0.github.io/CytoCount**](https://gcandid0.github.io/CytoCount) to explore interactive animated GIF demos, curtain comparisons, and direct Windows installer downloads (NSIS .exe, MSI, and Portable ZIP).
 
 ## About CytoCount
 
