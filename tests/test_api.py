@@ -19,7 +19,7 @@ def test_health_routes():
         assert r.status_code == 200, f"Falha em {path}: status {r.status_code}"
         data = r.json()
         assert data.get("status") == "ok"
-        assert data.get("version") == "1.3.0"
+        assert data.get("version") == "1.3.1"
         assert isinstance(data.get("pid"), int)
 
 def test_sample_demo():

@@ -27,65 +27,65 @@ def replace_in_file(rel_path, old_pattern, new_text):
     print(f"Atualizado {rel_path}")
 
 # 1. package.json
-replace_in_file("package.json", '"version": "1.2.0"', '"version": "1.3.0"')
+replace_in_file("package.json", '"version": "1.3.0"', '"version": "1.3.1"')
 
 # 2. package-lock.json
-replace_in_file("package-lock.json", '"name": "cytocount",\n  "version": "1.2.0"', '"name": "cytocount",\n  "version": "1.3.0"')
-replace_in_file("package-lock.json", '"packages": {\n    "": {\n      "name": "cytocount",\n      "version": "1.2.0"', '"packages": {\n    "": {\n      "name": "cytocount",\n      "version": "1.3.0"')
+replace_in_file("package-lock.json", '"name": "cytocount",\n  "version": "1.3.0"', '"name": "cytocount",\n  "version": "1.3.1"')
+replace_in_file("package-lock.json", '"packages": {\n    "": {\n      "name": "cytocount",\n      "version": "1.3.0"', '"packages": {\n    "": {\n      "name": "cytocount",\n      "version": "1.3.1"')
 
 # 3. src-tauri/Cargo.toml
-replace_in_file(os.path.join("src-tauri", "Cargo.toml"), 'version = "1.2.0"', 'version = "1.3.0"')
+replace_in_file(os.path.join("src-tauri", "Cargo.toml"), 'version = "1.3.0"', 'version = "1.3.1"')
 
 # 4. src-tauri/tauri.conf.json
-replace_in_file(os.path.join("src-tauri", "tauri.conf.json"), '"version": "1.2.0"', '"version": "1.3.0"')
+replace_in_file(os.path.join("src-tauri", "tauri.conf.json"), '"version": "1.3.0"', '"version": "1.3.1"')
 
 # 5. src-tauri/src/main.rs
-replace_in_file(os.path.join("src-tauri", "src", "main.rs"), "CytoCount v1.2.0", "CytoCount v1.3.0")
+replace_in_file(os.path.join("src-tauri", "src", "main.rs"), "CytoCount v1.3.0", "CytoCount v1.3.1")
 
 # 6. backend/core.py
-replace_in_file(os.path.join("backend", "core.py"), 'APP_VERSION = "1.2.0"', 'APP_VERSION = "1.3.0"')
-replace_in_file(os.path.join("backend", "core.py"), "CytoCount v1.2.0", "CytoCount v1.3.0")
+replace_in_file(os.path.join("backend", "core.py"), 'APP_VERSION = "1.3.0"', 'APP_VERSION = "1.3.1"')
+replace_in_file(os.path.join("backend", "core.py"), "CytoCount v1.3.0", "CytoCount v1.3.1")
 
 # 7. backend/main.py
-replace_in_file(os.path.join("backend", "main.py"), "CytoCount v1.2.0", "CytoCount v1.3.0")
+replace_in_file(os.path.join("backend", "main.py"), "CytoCount v1.3.0", "CytoCount v1.3.1")
 
 # 8. src/lib/api.ts
-replace_in_file(os.path.join("src", "lib", "api.ts"), 'export const APP_VERSION = "1.2.0";', 'export const APP_VERSION = "1.3.0";')
+replace_in_file(os.path.join("src", "lib", "api.ts"), 'export const APP_VERSION = "1.3.0";', 'export const APP_VERSION = "1.3.1";')
 
 # 9. src/lib/i18n.ts
-replace_in_file(os.path.join("src", "lib", "i18n.ts"), "Versão 1.2.0", "Versão 1.3.0")
-replace_in_file(os.path.join("src", "lib", "i18n.ts"), "version      = {1.2.0}", "version      = {1.3.0}")
+replace_in_file(os.path.join("src", "lib", "i18n.ts"), "Versão 1.3.0", "Versão 1.3.1")
+replace_in_file(os.path.join("src", "lib", "i18n.ts"), "version      = {1.3.0}", "version      = {1.3.1}")
 
 # 10. src/components/ModalTutorial.tsx
-replace_in_file(os.path.join("src", "components", "ModalTutorial.tsx"), "CytoCount v1.2.0", "CytoCount v1.3.0")
+replace_in_file(os.path.join("src", "components", "ModalTutorial.tsx"), "CytoCount v1.3.0", "CytoCount v1.3.1")
 
 # 11. src/components/NavegadorResultados.tsx
-replace_in_file(os.path.join("src", "components", "NavegadorResultados.tsx"), "CytoCount v1.2.0", "CytoCount v1.3.0")
+replace_in_file(os.path.join("src", "components", "NavegadorResultados.tsx"), "CytoCount v1.3.0", "CytoCount v1.3.1")
 
 # 12. tests/test_api.py
-replace_in_file(os.path.join("tests", "test_api.py"), 'assert data.get("version") == "1.2.0"', 'assert data.get("version") == "1.3.0"')
+replace_in_file(os.path.join("tests", "test_api.py"), 'assert data.get("version") == "1.3.0"', 'assert data.get("version") == "1.3.1"')
 
 # 13. CITATION.cff
-replace_in_file("CITATION.cff", 'version: "1.2.0"', 'version: "1.3.0"')
-replace_in_file("CITATION.cff", "Versão 1.2.0", "Versão 1.3.0")
+replace_in_file("CITATION.cff", 'version: "1.3.0"', 'version: "1.3.1"')
+replace_in_file("CITATION.cff", "Versão 1.3.0", "Versão 1.3.1")
 
 # 14. LICENSE
-replace_in_file("LICENSE", "(Versão 1.2.0)", "(Versão 1.3.0)")
+replace_in_file("LICENSE", "(Versão 1.3.0)", "(Versão 1.3.1)")
 
 # 15. READMEs
 for r in ["README.md", "README.en.md", "README.es.md"]:
-    replace_in_file(r, "CytoCount_1.2.0_x64-setup.exe", "CytoCount_1.3.0_x64-setup.exe")
-    replace_in_file(r, "CytoCount_1.2.0_x64_en-US.msi", "CytoCount_1.3.0_x64_en-US.msi")
-    replace_in_file(r, "1.2.0", "1.3.0")
+    replace_in_file(r, "CytoCount_1.3.0_x64-setup.exe", "CytoCount_1.3.1_x64-setup.exe")
+    replace_in_file(r, "CytoCount_1.3.0_x64_en-US.msi", "CytoCount_1.3.1_x64_en-US.msi")
+    replace_in_file(r, "1.3.0", "1.3.1")
 
 # 16. docs/index.html
-replace_in_file(os.path.join("docs", "index.html"), "v1.2.0", "v1.3.0")
-replace_in_file(os.path.join("docs", "index.html"), "Versão 1.2.0", "Versão 1.3.0")
-replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.2.0_x64-setup.exe", "CytoCount_1.3.0_x64-setup.exe")
-replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.2.0_x64_en-US.msi", "CytoCount_1.3.0_x64_en-US.msi")
-replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.2.0_x64_Portable.zip", "CytoCount_1.3.0_x64_Portable.zip")
+replace_in_file(os.path.join("docs", "index.html"), "v1.3.0", "v1.3.1")
+replace_in_file(os.path.join("docs", "index.html"), "Versão 1.3.0", "Versão 1.3.1")
+replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.3.0_x64-setup.exe", "CytoCount_1.3.1_x64-setup.exe")
+replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.3.0_x64_en-US.msi", "CytoCount_1.3.1_x64_en-US.msi")
+replace_in_file(os.path.join("docs", "index.html"), "CytoCount_1.3.0_x64_Portable.zip", "CytoCount_1.3.1_x64_Portable.zip")
 
 # 17. scripts/package_portable.ps1
-replace_in_file(os.path.join("scripts", "package_portable.ps1"), "1.2.0", "1.3.0")
+replace_in_file(os.path.join("scripts", "package_portable.ps1"), "1.3.0", "1.3.1")
 
-print("\nTodos os arquivos foram atualizados para a versão 1.3.0!")
+print("\nTodos os arquivos foram atualizados para a versão 1.3.1!")

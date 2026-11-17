@@ -1,5 +1,5 @@
 """
-core.py — Motor científico de visão computacional e bioestatística do CytoCount v1.3.0.
+core.py — Motor científico de visão computacional e bioestatística do CytoCount v1.3.1.
 
 Autor: Gabriel Candido Messias dos Santos
 """
@@ -44,7 +44,7 @@ try:
 except ImportError:
     oiffile = None
 
-APP_VERSION = "1.3.0"
+APP_VERSION = "1.3.1"
 
 # =========================================================================
 # CONFIGURAÇÃO / CALIBRAÇÃO

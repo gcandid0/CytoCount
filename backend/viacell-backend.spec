@@ -1,52 +1,46 @@
 # -*- mode: python ; coding: utf-8 -*-
+from PyInstaller.utils.hooks import collect_all
+
+datas = [('assets/exemplo_fluorescencia.png', 'assets')]
+binaries = []
+hiddenimports = [
+    'uvicorn',
+    'uvicorn.logging',
+    'uvicorn.loops',
+    'uvicorn.loops.auto',
+    'uvicorn.protocols',
+    'uvicorn.protocols.http',
+    'uvicorn.protocols.http.auto',
+    'uvicorn.protocols.websockets',
+    'uvicorn.protocols.websockets.auto',
+    'uvicorn.lifespan',
+    'uvicorn.lifespan.on',
+    'fastapi',
+    'starlette',
+    'pydantic',
+    'pandas',
+    'PIL',
+    'PIL.Image',
+    'PIL.ImageDraw',
+    'PIL.ImageFont',
+]
+
+for pkg in ['numpy', 'scipy', 'skimage', 'tifffile', 'czifile', 'nd2', 'oiffile', 'imagecodecs', 'readlif', 'cv2']:
+    pkg_datas, pkg_binaries, pkg_hidden = collect_all(pkg)
+    datas += pkg_datas
+    binaries += pkg_binaries
+    hiddenimports += pkg_hidden
 
 a = Analysis(
     ['main.py'],
     pathex=[],
-    binaries=[],
-    datas=[('assets/exemplo_fluorescencia.png', 'assets')],
-    hiddenimports=[
-        'uvicorn',
-        'uvicorn.logging',
-        'uvicorn.loops',
-        'uvicorn.loops.auto',
-        'uvicorn.protocols',
-        'uvicorn.protocols.http',
-        'uvicorn.protocols.http.auto',
-        'uvicorn.protocols.websockets',
-        'uvicorn.protocols.websockets.auto',
-        'uvicorn.lifespan',
-        'uvicorn.lifespan.on',
-        'fastapi',
-        'starlette',
-        'pydantic',
-        'scipy',
-        'scipy.special.cython_special',
-        'scipy.ndimage',
-        'skimage',
-        'skimage.feature',
-        'skimage.segmentation',
-        'skimage.filters',
-        'skimage.morphology',
-        'PIL',
-        'PIL.Image',
-        'PIL.ImageDraw',
-        'PIL.ImageFont',
-        'tifffile',
-        'czifile',
-        'readlif',
-        'readlif.reader',
-        'nd2',
-        'oiffile',
-        'imagecodecs',
-        'cv2',
-        'pandas',
-        'numpy',
-    ],
+    binaries=binaries,
+    datas=datas,
+    hiddenimports=hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    excludes=['pytest', 'tkinter'],
     noarchive=False,
     optimize=0,
 )
@@ -62,7 +56,7 @@ exe = EXE(
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
     runtime_tmpdir=None,
     console=True,
