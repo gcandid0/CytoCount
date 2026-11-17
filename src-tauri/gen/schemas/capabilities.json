@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Permissões padrão do CytoCount","local":true,"windows":["main"],"permissions":["core:default",{"identifier":"shell:allow-execute","allow":[{"args":true,"name":"viacell-backend","sidecar":true}]}]}}
+{"default":{"identifier":"default","description":"Permissões padrão do CytoCount","local":true,"windows":["main"],"permissions":["core:default","updater:default","process:default",{"identifier":"shell:allow-execute","allow":[{"args":true,"name":"viacell-backend","sidecar":true}]}]}}

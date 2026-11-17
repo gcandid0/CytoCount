@@ -26,7 +26,16 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "createUpdaterArtifacts": true,
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
     "externalBin": ["binaries/viacell-backend"]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDc3NEY3OTNGMzUwMEZEMDYKUldRRy9RQTFQM2xQZDF4ZmFscmVCZDByRnpZd0hkWnBCamNiNEFadHVya2VUUXVxZmtGU3M4K3YK",
+      "endpoints": [
+        "https://github.com/gcandid0/CytoCount/releases/latest/download/latest.json"
+      ]
+    }
   }
 }

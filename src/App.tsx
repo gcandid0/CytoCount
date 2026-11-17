@@ -44,7 +44,9 @@ import ModalFeedback from "./components/ModalFeedback";
 import ModalBoasVindas from "./components/ModalBoasVindas";
 import ModalMesclarCanais from "./components/ModalMesclarCanais";
 import ModalExportarPublicacao from "./components/ModalExportarPublicacao";
+import ModalAtualizacao from "./components/ModalAtualizacao";
 import SplashScreen from "./components/SplashScreen";
+import { checarAtualizacao, InfoAtualizacao } from "./lib/updater";
 import {
   AlertTriangleIcon,
   BookOpenIcon,
@@ -63,6 +65,7 @@ import {
   MessageSquareIcon,
   MicroscopeIcon,
   PrinterIcon,
+  RefreshCwIcon,
   SaveIcon,
   XIcon,
 } from "./components/Icons";
@@ -132,6 +135,8 @@ export default function App() {
   const [naoMostrarBoasVindasCfg, setNaoMostrarBoasVindasCfg] = useState(false);
   const [mostrarMergeCanais, setMostrarMergeCanais] = useState(false);
   const [mostrarExportarPub, setMostrarExportarPub] = useState(false);
+  const [infoAtualizacao, setInfoAtualizacao] = useState<InfoAtualizacao | null>(null);
+  const [verificandoUpdate, setVerificandoUpdate] = useState(false);
 
   // Notificações visíveis (Toasts)
   const [toasts, setToasts] = useState<ToastMsg[]>([]);
@@ -168,6 +173,40 @@ export default function App() {
       }
     });
   }, []);
+
+  // Checagem automática e silenciosa de atualizações ao inicializar
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      checarAtualizacao()
+        .then((res) => {
+          if (res.disponivel) {
+            setInfoAtualizacao(res);
+          }
+        })
+        .catch(() => {
+          // Ignora falhas de conexão silenciosamente na inicialização
+        });
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const handleVerificarAtualizacoesManualmente = async () => {
+    setMenuAberto(null);
+    setVerificandoUpdate(true);
+    try {
+      notificar(t.update_checking, "info");
+      const res = await checarAtualizacao();
+      if (res.disponivel) {
+        setInfoAtualizacao(res);
+      } else {
+        notificar(t.update_up_to_date, "sucesso");
+      }
+    } catch {
+      notificar(t.update_error, "erro");
+    } finally {
+      setVerificandoUpdate(false);
+    }
+  };
 
   // Fecha menu dropdown ao clicar fora
   useEffect(() => {
@@ -1209,6 +1248,19 @@ export default function App() {
                   <button
                     type="button"
                     className="menu-item"
+                    disabled={verificandoUpdate}
+                    onClick={handleVerificarAtualizacoesManualmente}
+                  >
+                    <RefreshCwIcon
+                      size={14}
+                      className={verificandoUpdate ? "spin" : ""}
+                    />
+                    <span>{t.menu_check_updates}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    className="menu-item"
                     onClick={() => {
                       setMenuAberto(null);
                       abrirPastaLogs();
@@ -1719,6 +1771,15 @@ export default function App() {
         <ModalFeedback
           onFechar={() => setMostrarFeedback(false)}
           diagnostico={diagnostico}
+          onNotificar={notificar}
+        />
+      )}
+
+      {infoAtualizacao && (
+        <ModalAtualizacao
+          info={infoAtualizacao}
+          idioma={idioma}
+          onFechar={() => setInfoAtualizacao(null)}
           onNotificar={notificar}
         />
       )}
