@@ -28,7 +28,20 @@
     "targets": "all",
     "createUpdaterArtifacts": true,
     "icon": ["icons/32x32.png", "icons/128x128.png", "icons/icon.ico"],
-    "externalBin": ["binaries/viacell-backend"]
+    "externalBin": ["binaries/viacell-backend"],
+    "publisher": "Gabriel Candido Messias dos Santos",
+    "copyright": "Copyright (C) 2026 Gabriel Candido - CNPEM",
+    "homepage": "https://gcandid0.github.io/CytoCount/",
+    "shortDescription": "Citometria por Imagem e Analise de Viabilidade Celular",
+    "longDescription": "Software cientifico automatizado para contagem celular, analise de fluorescencia e suporte a formatos de microscopia confocal (Zeiss, Leica, Nikon, Olympus).",
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "hooks.nsh",
+        "languages": ["Portuguese", "English"],
+        "displayLanguageSelector": false
+      }
+    }
   },
   "plugins": {
     "updater": {

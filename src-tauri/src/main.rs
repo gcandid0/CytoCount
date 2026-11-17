@@ -125,6 +125,16 @@ async fn reiniciar_backend(
 }
 
 #[tauri::command]
+fn fechar_backend_para_atualizacao(state: tauri::State<BackendState>) -> Result<(), String> {
+    if let Ok(mut lock) = state.child.lock() {
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_user_config(state: tauri::State<BackendState>) -> Result<String, String> {
     if state.config_file_path.exists() {
         fs::read_to_string(&state.config_file_path)
@@ -557,6 +567,7 @@ fn main() {
             registrar_log_frontend,
             abrir_pasta_logs,
             reiniciar_backend,
+            fechar_backend_para_atualizacao,
             get_user_config,
             save_user_config,
             salvar_arquivo_dialogo,

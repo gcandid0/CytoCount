@@ -1,5 +1,6 @@
 import { check, Update } from "@tauri-apps/plugin-updater";
 import { relaunch } from "@tauri-apps/plugin-process";
+import { invoke } from "@tauri-apps/api/core";
 
 export interface InfoAtualizacao {
   disponivel: boolean;
@@ -74,10 +75,12 @@ export async function baixarEInstalarAtualizacao(
           totalBytes,
           pct: 100,
         });
+        // Encerra child backend antes que o instalador tente sobrescrever os arquivos
+        invoke("fechar_backend_para_atualizacao").catch(() => {});
         break;
     }
   });
 
-  // Reinicia a aplicação para abrir a nova versão instalada
+  // Reinicia a aplicação para abrir a nova versão instalada (no macOS/Linux)
   await relaunch();
 }
