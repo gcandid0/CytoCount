@@ -210,21 +210,26 @@ async def carregar_amostra_demo(
     request: Request,
     idioma: Optional[str] = Form(None),
     motor_segmentacao: Optional[str] = Form(None),
+    tipo_analise: Optional[str] = Form(None),
 ):
     """Carrega a imagem de fluorescência de exemplo embutida no pacote e a processa."""
-    if not idioma or not motor_segmentacao:
+    if not idioma or not motor_segmentacao or not tipo_analise:
         try:
             body = await request.json()
             if not idioma:
                 idioma = body.get("idioma", "pt")
             if not motor_segmentacao:
                 motor_segmentacao = body.get("motor_segmentacao", "watershed")
+            if not tipo_analise:
+                tipo_analise = body.get("tipo_analise", "viabilidade")
         except Exception:
             pass
     if not idioma:
         idioma = "pt"
     if not motor_segmentacao:
         motor_segmentacao = "watershed"
+    if not tipo_analise:
+        tipo_analise = "viabilidade"
 
     async with _PROCESS_LOCK:
         file_bytes = core.gerar_amostra_exemplo()
@@ -243,6 +248,7 @@ async def carregar_amostra_demo(
             "raio_citoplasma": 8,
             "roi": None,
             "idioma": idioma,
+            "tipo_analise": tipo_analise,
         }
 
         relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
@@ -297,6 +303,7 @@ async def process_imagem(
     raio_citoplasma: int = Form(8),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
+    tipo_analise: str = Form("viabilidade"),
 ):
     raw_bytes = await arquivo.read()
     file_bytes, aviso_mp = _proteger_e_ajustar_bytes_imagem(raw_bytes)
@@ -322,6 +329,7 @@ async def process_imagem(
         "raio_citoplasma": raio_citoplasma,
         "roi": roi,
         "idioma": idioma,
+        "tipo_analise": tipo_analise,
     }
 
     nome_arq = arquivo.filename or "amostra.png"
@@ -381,6 +389,7 @@ async def reprocessar_amostra(
     raio_citoplasma: int = Form(8),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
+    tipo_analise: str = Form("viabilidade"),
 ):
     if job_id not in _SESSAO:
         return JSONResponse(
@@ -427,6 +436,7 @@ async def reprocessar_amostra(
         "raio_citoplasma": raio_citoplasma,
         "roi": roi,
         "idioma": idioma,
+        "tipo_analise": tipo_analise,
     }
 
     async with _PROCESS_LOCK:
@@ -498,6 +508,7 @@ async def atualizar_celulas_manual(
     roi_aplicado = item.get("relatorio", {}).get("ROI Dict")
     eh_jpeg = item.get("eh_jpeg", False)
     nome_arquivo = item["nome_arquivo"]
+    tipo_analise = payload.get("tipo_analise", item.get("parametros", {}).get("tipo_analise", "viabilidade"))
 
     relatorio = core.calcular_estatisticas_unificadas(
         tabela_celulas=tabela_celulas,
@@ -507,6 +518,7 @@ async def atualizar_celulas_manual(
         eh_jpeg=eh_jpeg,
         manual_edits=manual_edits,
         motor_segmentacao=item.get("parametros", {}).get("motor_segmentacao", "watershed"),
+        tipo_analise=tipo_analise,
     )
 
     orig_path = item.get("orig_path")
@@ -559,6 +571,7 @@ async def mesclar_canais(
     segmentar_citoplasma: bool = Form(True),
     raio_citoplasma: int = Form(8),
     idioma: str = Form("pt"),
+    tipo_analise: str = Form("viabilidade"),
 ):
     """
     Suporte a canais separados (DAPI/Azul, FITC/Verde, PI/Vermelho-Amarelo) ou TIFF multicanal,
@@ -630,6 +643,7 @@ async def mesclar_canais(
             "raio_citoplasma": raio_citoplasma,
             "roi": None,
             "idioma": idioma,
+            "tipo_analise": tipo_analise,
             "canais_separados_puros": canais_puros,
         }
 

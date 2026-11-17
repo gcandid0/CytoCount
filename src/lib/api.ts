@@ -179,6 +179,7 @@ export interface ROI {
 }
 
 export type MotorSegmentacao = "watershed" | "stardist" | "cellpose";
+export type TipoAnalise = "viabilidade" | "citoplasma";
 
 export interface Parametros {
   bias_azul: number;
@@ -192,19 +193,24 @@ export interface Parametros {
   segmentar_citoplasma?: boolean;
   raio_citoplasma?: number;
   roi?: ROI | null;
+  tipo_analise?: TipoAnalise;
 }
 
-export type ClasseCelula = "viavel" | "morta" | "indeterminada";
+export type ClasseCelula = "viavel" | "morta" | "indeterminada" | "com_citoplasma" | "sem_citoplasma";
 
 export interface CelulaIndividual {
   celula_id: number;
   area_px: number;
   area_citoplasma_px?: number;
+  area_total_px?: number;
   area_regiao_px?: number;
   centro_x: number;
   centro_y: number;
   raio_eq?: number;
   mean_intensity?: number;
+  intensidade_verde?: number;
+  intensidade_azul?: number;
+  razao_nc?: number | null;
   cobertura_verde_pct: number;
   cobertura_amarela_pct: number;
   classificacao: ClasseCelula;
@@ -225,6 +231,7 @@ export interface ManualEdit {
 
 export interface RelatorioAmostra {
   Arquivo: string;
+  "Tipo de Análise"?: TipoAnalise;
   "Total (Azul)": number;
   Detectados: number;
   "Viáveis (Verde)": number;
@@ -246,6 +253,14 @@ export interface RelatorioAmostra {
   "Edições Manuais"?: number;
   "Motor de Segmentação"?: string;
   "Formato com perda (JPEG)": "Sim" | "Não";
+  // Métricas de Citoplasma
+  "Com Citoplasma"?: number;
+  "Sem Citoplasma"?: number;
+  "Pct Com Citoplasma (%)"?: number;
+  "Área Média Núcleo (px²)"?: number;
+  "Área Média Citoplasma (px²)"?: number;
+  "Área Média Total (px²)"?: number;
+  "Razão N:C Média"?: number;
 }
 
 export interface ResultadoProcessamento {
@@ -310,6 +325,7 @@ export async function processarImagem(
   fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
   fd.append("segmentar_citoplasma", String(p.segmentar_citoplasma ?? true));
   fd.append("raio_citoplasma", String(p.raio_citoplasma ?? 8));
+  fd.append("tipo_analise", p.tipo_analise ?? "viabilidade");
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -349,6 +365,7 @@ export async function reprocessarAmostra(
   fd.append("motor_segmentacao", p.motor_segmentacao ?? "watershed");
   fd.append("segmentar_citoplasma", String(p.segmentar_citoplasma ?? true));
   fd.append("raio_citoplasma", String(p.raio_citoplasma ?? 8));
+  fd.append("tipo_analise", p.tipo_analise ?? "viabilidade");
   if (p.roi) {
     fd.append("roi_json", JSON.stringify(p.roi));
   }
@@ -397,12 +414,14 @@ export async function atualizarCelulasManual(
 
 export async function carregarAmostraDemo(
   idioma: Idioma = "pt",
-  motorSegmentacao: MotorSegmentacao = "watershed"
+  motorSegmentacao: MotorSegmentacao = "watershed",
+  tipoAnalise: TipoAnalise = "viabilidade"
 ): Promise<ResultadoProcessamento> {
   const base = await obterApiBase();
   const fd = new FormData();
   fd.append("idioma", idioma);
   fd.append("motor_segmentacao", motorSegmentacao);
+  fd.append("tipo_analise", tipoAnalise);
   const resp = await fetch(`${base}/api/sample-demo`, { method: "POST", body: fd });
   if (!resp.ok) {
     const errBody = await resp.json().catch(() => null);
@@ -443,6 +462,7 @@ export async function mesclarCanaisAPI(opcoes: {
   fd.append("motor_segmentacao", opcoes.parametros.motor_segmentacao ?? "watershed");
   fd.append("segmentar_citoplasma", String(opcoes.parametros.segmentar_citoplasma ?? true));
   fd.append("raio_citoplasma", String(opcoes.parametros.raio_citoplasma ?? 8));
+  fd.append("tipo_analise", opcoes.parametros.tipo_analise ?? "viabilidade");
   fd.append("idioma", opcoes.idioma);
 
   const resp = await fetch(`${base}/api/merge-channels`, { method: "POST", body: fd });

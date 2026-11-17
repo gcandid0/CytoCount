@@ -24,6 +24,7 @@ import {
 } from "./lib/api";
 import { CITACAO_OFICIAL, Idioma, TEXTOS } from "./lib/i18n";
 import {
+  formatarDecimal,
   formatarInteiro,
   formatarPercentual,
   formatarViabilidadeDeContagem,
@@ -78,6 +79,7 @@ const PARAMS_INICIAIS: Parametros = {
   segmentar_citoplasma: true,
   raio_citoplasma: 8,
   roi: null,
+  tipo_analise: "viabilidade",
 };
 
 interface ToastMsg {
@@ -841,13 +843,63 @@ export default function App() {
     return () => window.removeEventListener("keydown", handler);
   }, [resultadosValidos, selecionadoId, salvarProjeto]);
 
-  // Totais consolidados (FONTE ÚNICA DA VERDADE: Detectados = Vivas + Mortas + Indeterminadas)
+  // Totais consolidados (FONTE ÚNICA DA VERDADE)
   const totais = useMemo(() => {
     if (resultadosValidos.length === 0) return null;
+    const ehCito = (amostraSelecionada?.relatorio?.["Tipo de Análise"] ?? parametros.tipo_analise) === "citoplasma";
+
     const detectados = resultadosValidos.reduce(
       (s, r) => s + (r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0),
       0
     );
+
+    if (ehCito) {
+      const comCito = resultadosValidos.reduce(
+        (s, r) => s + (r.relatorio["Com Citoplasma"] ?? r.relatorio["Viáveis (Verde)"] ?? 0),
+        0
+      );
+      const semCito = Math.max(0, detectados - comCito);
+      const pctComCito = detectados > 0 ? (comCito / detectados) * 100 : 0;
+      const pctSemCito = detectados > 0 ? (semCito / detectados) * 100 : 0;
+
+      const areaCitoMedia =
+        resultadosValidos.length > 0
+          ? resultadosValidos.reduce((s, r) => s + (r.relatorio["Área Média Citoplasma (px²)"] ?? 0), 0) /
+            resultadosValidos.length
+          : 0;
+      const areaNucMedia =
+        resultadosValidos.length > 0
+          ? resultadosValidos.reduce((s, r) => s + (r.relatorio["Área Média Núcleo (px²)"] ?? 0), 0) /
+            resultadosValidos.length
+          : 0;
+      const razaoNCMedia =
+        resultadosValidos.length > 0
+          ? resultadosValidos.reduce((s, r) => s + (r.relatorio["Razão N:C Média"] ?? 0), 0) /
+            resultadosValidos.length
+          : 0;
+
+      return {
+        ehCito: true,
+        amostras: resultadosValidos.length,
+        detectados,
+        comCito,
+        semCito,
+        pctComCito,
+        pctSemCito,
+        areaCitoMedia: Math.round(areaCitoMedia * 10) / 10,
+        areaNucMedia: Math.round(areaNucMedia * 10) / 10,
+        razaoNCMedia: Math.round(razaoNCMedia * 100) / 100,
+        vivas: comCito,
+        mortas: 0,
+        indeterminadas: semCito,
+        pctVivas: pctComCito,
+        pctMortas: 0,
+        pctIndet: pctSemCito,
+        viabFormatada: "—",
+        alertaQualidade: false,
+      };
+    }
+
     const vivas = resultadosValidos.reduce(
       (s, r) => s + (r.relatorio["Viáveis (Verde)"] ?? 0),
       0
@@ -875,6 +927,7 @@ export default function App() {
       Boolean(amostraSelecionada?.relatorio["Alerta Indeterminadas"]);
 
     return {
+      ehCito: false,
       amostras: resultadosValidos.length,
       detectados,
       vivas,
@@ -886,7 +939,7 @@ export default function App() {
       viabFormatada: viabStats.formatado,
       alertaQualidade,
     };
-  }, [resultadosValidos, parametros.formula_viabilidade, idioma, amostraSelecionada]);
+  }, [resultadosValidos, parametros.formula_viabilidade, parametros.tipo_analise, idioma, amostraSelecionada]);
 
   const podeProcessar =
     arquivos.length > 0 && !processando && backendOnline === true;
@@ -1390,46 +1443,85 @@ export default function App() {
                       </span>
                     </div>
 
-                    <div className="stat-card stat-green">
-                      <span className="stat-value">
-                        {formatarInteiro(totais.vivas, idioma)}{" "}
-                        <small className="stat-pct">
-                          ({formatarPercentual(totais.pctVivas, idioma, 1)})
-                        </small>
-                      </span>
-                      <span className="stat-label">{t.card_live}</span>
-                    </div>
+                    {totais.ehCito ? (
+                      <>
+                        <div className="stat-card stat-green">
+                          <span className="stat-value">
+                            {formatarInteiro(totais.comCito, idioma)}{" "}
+                            <small className="stat-pct">
+                              ({formatarPercentual(totais.pctComCito, idioma, 1)})
+                            </small>
+                          </span>
+                          <span className="stat-label">{t.card_with_cytoplasm}</span>
+                        </div>
 
-                    <div className="stat-card stat-yellow">
-                      <span className="stat-value">
-                        {formatarInteiro(totais.mortas, idioma)}{" "}
-                        <small className="stat-pct">
-                          ({formatarPercentual(totais.pctMortas, idioma, 1)})
-                        </small>
-                      </span>
-                      <span className="stat-label">{t.card_dead}</span>
-                    </div>
+                        <div className="stat-card stat-green">
+                          <span className="stat-value">
+                            {formatarDecimal(totais.areaCitoMedia, idioma, 1)}{" "}
+                            <small className="stat-pct">px²</small>
+                          </span>
+                          <span className="stat-label">{t.card_cyto_area}</span>
+                        </div>
 
-                    <div
-                      className={`stat-card ${
-                        totais.alertaQualidade ? "stat-yellow" : "stat-muted"
-                      }`}
-                    >
-                      <span className="stat-value">
-                        {formatarInteiro(totais.indeterminadas, idioma)}{" "}
-                        <small className="stat-pct">
-                          ({formatarPercentual(totais.pctIndet, idioma, 1)})
-                        </small>
-                      </span>
-                      <span className="stat-label">{t.card_undetermined}</span>
-                    </div>
+                        <div className="stat-card stat-blue">
+                          <span className="stat-value">
+                            {formatarDecimal(totais.areaNucMedia, idioma, 1)}{" "}
+                            <small className="stat-pct">px²</small>
+                          </span>
+                          <span className="stat-label">{t.card_nuc_area}</span>
+                        </div>
 
-                    <div className="stat-card stat-viability">
-                      <span className="stat-value stat-value-ic">
-                        {totais.viabFormatada}
-                      </span>
-                      <span className="stat-label">{t.card_viability}</span>
-                    </div>
+                        <div className="stat-card stat-viability">
+                          <span className="stat-value stat-value-ic">
+                            {formatarDecimal(totais.razaoNCMedia, idioma, 2)}
+                          </span>
+                          <span className="stat-label">{t.card_nc_ratio}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="stat-card stat-green">
+                          <span className="stat-value">
+                            {formatarInteiro(totais.vivas, idioma)}{" "}
+                            <small className="stat-pct">
+                              ({formatarPercentual(totais.pctVivas, idioma, 1)})
+                            </small>
+                          </span>
+                          <span className="stat-label">{t.card_live}</span>
+                        </div>
+
+                        <div className="stat-card stat-yellow">
+                          <span className="stat-value">
+                            {formatarInteiro(totais.mortas, idioma)}{" "}
+                            <small className="stat-pct">
+                              ({formatarPercentual(totais.pctMortas, idioma, 1)})
+                            </small>
+                          </span>
+                          <span className="stat-label">{t.card_dead}</span>
+                        </div>
+
+                        <div
+                          className={`stat-card ${
+                            totais.alertaQualidade ? "stat-yellow" : "stat-muted"
+                          }`}
+                        >
+                          <span className="stat-value">
+                            {formatarInteiro(totais.indeterminadas, idioma)}{" "}
+                            <small className="stat-pct">
+                              ({formatarPercentual(totais.pctIndet, idioma, 1)})
+                            </small>
+                          </span>
+                          <span className="stat-label">{t.card_undetermined}</span>
+                        </div>
+
+                        <div className="stat-card stat-viability">
+                          <span className="stat-value stat-value-ic">
+                            {totais.viabFormatada}
+                          </span>
+                          <span className="stat-label">{t.card_viability}</span>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   {/* Aviso amarelo quando indeterminadas > 15% dos detectados */}

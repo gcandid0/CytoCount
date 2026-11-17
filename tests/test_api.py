@@ -137,9 +137,54 @@ def test_wilson_ci_edge_cases():
     assert "91,3%" in fmt
     assert "90,2–92,4" in fmt
 
+def test_cytoplasm_segmentation_flow():
+    # Cria imagem sintética com núcleo (azul) envolto por citoplasma (verde)
+    img = np.zeros((256, 256, 3), dtype=np.uint8)
+    # Célula 1: Núcleo no centro (azul) + halo verde amplo (citoplasma)
+    cv2.circle(img, (128, 128), 35, (0, 180, 0), -1)   # Verde BGR = (0, 180, 0)
+    cv2.circle(img, (128, 128), 15, (220, 0, 0), -1)   # Azul BGR = (220, 0, 0)
+    ok, buf = cv2.imencode(".png", img)
+    assert ok
+    file_bytes = buf.tobytes()
+
+    files = {"arquivo": ("teste_citoplasma.png", io.BytesIO(file_bytes), "image/png")}
+    data = {
+        "tipo_analise": "citoplasma",
+        "raio_citoplasma": "30",
+        "bias_azul": "0",
+        "bias_verde": "0",
+        "aplicar_bilateral": "true",
+        "min_circularidade": "0.1",
+        "idioma": "pt",
+    }
+    r = client.post("/api/process", files=files, data=data)
+    assert r.status_code == 200, f"Falha no processamento de citoplasma: {r.text}"
+    res = r.json()
+    rel = res["relatorio"]
+    assert rel["Tipo de Análise"] == "citoplasma"
+    assert rel["Detectados"] >= 1
+    assert rel["Com Citoplasma"] >= 1
+    assert "Área Média Citoplasma (px²)" in rel
+    assert "Razão N:C Média" in rel
+    assert "Alerta Indeterminadas" not in rel or rel["Alerta Indeterminadas"] is False
+
+    # Reprocessamento em modo citoplasma
+    job_id = res["id"]
+    r_rep = client.post(f"/api/reprocess/{job_id}", data={
+        "tipo_analise": "citoplasma",
+        "raio_citoplasma": "40",
+        "bias_verde": "10",
+        "idioma": "pt",
+    })
+    assert r_rep.status_code == 200
+    res_rep = r_rep.json()
+    assert res_rep["relatorio"]["Tipo de Análise"] == "citoplasma"
+    assert res_rep["relatorio"]["Com Citoplasma"] >= 1
+
 if __name__ == "__main__":
     test_health_routes()
     test_sample_demo()
     test_process_and_reprocess_flow()
+    test_cytoplasm_segmentation_flow()
     test_wilson_ci_edge_cases()
     print("TODOS OS TESTES DE API E WILSON PASSARAM COM SUCESSO!")

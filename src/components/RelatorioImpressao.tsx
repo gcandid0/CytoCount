@@ -41,6 +41,10 @@ export default function RelatorioImpressao({
   const validos = resultados.filter((r) => !r.erro);
   if (validos.length === 0) return null;
 
+  const isCitoplasma =
+    parametros.tipo_analise === "citoplasma" ||
+    validos.some((r) => r.relatorio["Tipo de Análise"] === "citoplasma");
+
   const totalDetectados = validos.reduce(
     (s, r) => s + (r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0),
     0
@@ -62,6 +66,22 @@ export default function RelatorioImpressao({
   const pctIndetGlobal =
     totalDetectados > 0 ? (totalIndet / totalDetectados) * 100 : 0;
 
+  const totalComCitoplasma = validos.reduce(
+    (s, r) => s + (r.relatorio["Com Citoplasma"] ?? 0),
+    0
+  );
+  const pctComCitoplasmaGlobal =
+    totalDetectados > 0 ? (totalComCitoplasma / totalDetectados) * 100 : 0;
+  const areaMediaCitoplasmaGlobal =
+    validos.reduce((s, r) => s + (r.relatorio["Área Média Citoplasma (px²)"] ?? 0), 0) /
+    (validos.length || 1);
+  const areaMediaNucleoGlobal =
+    validos.reduce((s, r) => s + (r.relatorio["Área Média Núcleo (px²)"] ?? 0), 0) /
+    (validos.length || 1);
+  const razaoNCMediaGlobal =
+    validos.reduce((s, r) => s + (r.relatorio["Razão N:C Média"] ?? 0), 0) /
+    (validos.length || 1);
+
   const ehRigoroso = parametros.formula_viabilidade.includes("Rigoroso");
   const baseGlobal = ehRigoroso ? totalDetectados : totalVivas + totalMortas;
   const statsViabGlobal = formatarViabilidadeDeContagem(
@@ -69,7 +89,7 @@ export default function RelatorioImpressao({
     baseGlobal,
     idioma
   );
-  const alertaQualidadeGlobal = pctIndetGlobal > 15;
+  const alertaQualidadeGlobal = !isCitoplasma && pctIndetGlobal > 15;
 
   const todasEdicoesManuais = validos.flatMap((r) =>
     (r.manual_edits ?? []).map((ed) => ({
@@ -175,7 +195,11 @@ ${htmlInterno}
       >
         <header className="print-header">
           <div>
-            <h1>CytoCount — Relatório Executivo de Viabilidade Celular</h1>
+            <h1>
+              {isCitoplasma
+                ? "CytoCount — Relatório Executivo de Morfometria Celular e Citoplasma"
+                : "CytoCount — Relatório Executivo de Viabilidade Celular"}
+            </h1>
             <p>
               Motor de Segmentação:{" "}
               {parametros.motor_segmentacao === "stardist"
@@ -202,44 +226,82 @@ ${htmlInterno}
           </div>
         </header>
 
-        {/* Resumo Executivo: 4 Contagens + Viabilidade com IC 95% */}
+        {/* Resumo Executivo */}
         <section className="print-section">
           <h2>1. Resumo Executivo Consolidado</h2>
-          <div className="print-summary-grid">
-            <div className="print-stat-box stat-blue">
-              <span className="print-stat-val">
-                {formatarInteiro(totalDetectados, idioma)}
-              </span>
-              <span className="print-stat-lbl">{t.card_detected} (100%)</span>
+          {isCitoplasma ? (
+            <div className="print-summary-grid">
+              <div className="print-stat-box stat-blue">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalDetectados, idioma)}
+                </span>
+                <span className="print-stat-lbl">{t.card_detected} (100%)</span>
+              </div>
+              <div className="print-stat-box stat-green">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalComCitoplasma, idioma)}{" "}
+                  <small>({formatarPercentual(pctComCitoplasmaGlobal, idioma, 1)})</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_with_cytoplasm}</span>
+              </div>
+              <div className="print-stat-box stat-blue">
+                <span className="print-stat-val">
+                  {formatarDecimal(areaMediaCitoplasmaGlobal, idioma, 1)}{" "}
+                  <small>px²</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_cyto_area}</span>
+              </div>
+              <div className="print-stat-box stat-muted">
+                <span className="print-stat-val">
+                  {formatarDecimal(areaMediaNucleoGlobal, idioma, 1)}{" "}
+                  <small>px²</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_nuc_area}</span>
+              </div>
+              <div className="print-stat-box stat-highlight">
+                <span className="print-stat-val">
+                  {formatarDecimal(razaoNCMediaGlobal, idioma, 2)}
+                </span>
+                <span className="print-stat-lbl">{t.card_nc_ratio}</span>
+              </div>
             </div>
-            <div className="print-stat-box stat-green">
-              <span className="print-stat-val">
-                {formatarInteiro(totalVivas, idioma)}{" "}
-                <small>({formatarPercentual(pctVivasGlobal, idioma, 1)})</small>
-              </span>
-              <span className="print-stat-lbl">{t.card_live}</span>
+          ) : (
+            <div className="print-summary-grid">
+              <div className="print-stat-box stat-blue">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalDetectados, idioma)}
+                </span>
+                <span className="print-stat-lbl">{t.card_detected} (100%)</span>
+              </div>
+              <div className="print-stat-box stat-green">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalVivas, idioma)}{" "}
+                  <small>({formatarPercentual(pctVivasGlobal, idioma, 1)})</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_live}</span>
+              </div>
+              <div className="print-stat-box stat-yellow">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalMortas, idioma)}{" "}
+                  <small>({formatarPercentual(pctMortasGlobal, idioma, 1)})</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_dead}</span>
+              </div>
+              <div className="print-stat-box stat-muted">
+                <span className="print-stat-val">
+                  {formatarInteiro(totalIndet, idioma)}{" "}
+                  <small>({formatarPercentual(pctIndetGlobal, idioma, 1)})</small>
+                </span>
+                <span className="print-stat-lbl">{t.card_undetermined}</span>
+              </div>
+              <div className="print-stat-box stat-highlight">
+                <span className="print-stat-val print-stat-ic">
+                  {statsViabGlobal.formatado}
+                </span>
+                <span className="print-stat-lbl">{t.card_viability}</span>
+              </div>
             </div>
-            <div className="print-stat-box stat-yellow">
-              <span className="print-stat-val">
-                {formatarInteiro(totalMortas, idioma)}{" "}
-                <small>({formatarPercentual(pctMortasGlobal, idioma, 1)})</small>
-              </span>
-              <span className="print-stat-lbl">{t.card_dead}</span>
-            </div>
-            <div className="print-stat-box stat-muted">
-              <span className="print-stat-val">
-                {formatarInteiro(totalIndet, idioma)}{" "}
-                <small>({formatarPercentual(pctIndetGlobal, idioma, 1)})</small>
-              </span>
-              <span className="print-stat-lbl">{t.card_undetermined}</span>
-            </div>
-            <div className="print-stat-box stat-highlight">
-              <span className="print-stat-val print-stat-ic">
-                {statsViabGlobal.formatado}
-              </span>
-              <span className="print-stat-lbl">{t.card_viability}</span>
-            </div>
-          </div>
+          )}
 
           {alertaQualidadeGlobal && (
             <div className="quality-warning-banner" style={{ marginTop: 12 }}>
@@ -252,9 +314,13 @@ ${htmlInterno}
           )}
         </section>
 
-        {/* Gráfico de Barras de Viabilidade por Amostra com Barras de Erro (IC 95% de Wilson) */}
+        {/* Gráfico de Barras por Amostra */}
         <section className="print-section">
-          <h2>2. Gráfico de Viabilidade por Amostra (com Barras de Erro IC 95% de Wilson)</h2>
+          <h2>
+            {isCitoplasma
+              ? "2. Gráfico de Segmentação de Citoplasma por Amostra (% Células com Citoplasma)"
+              : "2. Gráfico de Viabilidade por Amostra (com Barras de Erro IC 95% de Wilson)"}
+          </h2>
           <div className="print-chart-box">
             <svg
               viewBox={`0 0 760 ${Math.max(150, validos.length * 42 + 50)}`}
@@ -289,7 +355,14 @@ ${htmlInterno}
 
               {validos.map((r, idx) => {
                 const y = 28 + idx * 42;
-                const v = r.relatorio["Viabilidade (%)"] ?? 0;
+                const det =
+                  r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0;
+                const v = isCitoplasma
+                  ? (r.relatorio["Pct Com Citoplasma (%)"] ??
+                    (det > 0
+                      ? ((r.relatorio["Com Citoplasma"] ?? 0) / det) * 100
+                      : 0))
+                  : (r.relatorio["Viabilidade (%)"] ?? 0);
                 const lo = r.relatorio["IC 95% Baixo"] ?? v;
                 const hi = r.relatorio["IC 95% Alto"] ?? v;
                 const barW = Math.max(2, (v / 100) * 440);
@@ -321,31 +394,40 @@ ${htmlInterno}
                       fill="#10b981"
                       fillOpacity={0.82}
                     />
-                    {/* Barra de erro horizontal IC 95% de Wilson */}
-                    <line
-                      x1={xLo}
-                      y1={y + 11}
-                      x2={xHi}
-                      y2={y + 11}
-                      stroke={temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"}
-                      strokeWidth="1.8"
-                    />
-                    <line
-                      x1={xLo}
-                      y1={y + 5}
-                      x2={xLo}
-                      y2={y + 17}
-                      stroke={temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"}
-                      strokeWidth="1.8"
-                    />
-                    <line
-                      x1={xHi}
-                      y1={y + 5}
-                      x2={xHi}
-                      y2={y + 17}
-                      stroke={temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"}
-                      strokeWidth="1.8"
-                    />
+                    {!isCitoplasma && (
+                      <>
+                        <line
+                          x1={xLo}
+                          y1={y + 11}
+                          x2={xHi}
+                          y2={y + 11}
+                          stroke={
+                            temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"
+                          }
+                          strokeWidth="1.8"
+                        />
+                        <line
+                          x1={xLo}
+                          y1={y + 5}
+                          x2={xLo}
+                          y2={y + 17}
+                          stroke={
+                            temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"
+                          }
+                          strokeWidth="1.8"
+                        />
+                        <line
+                          x1={xHi}
+                          y1={y + 5}
+                          x2={xHi}
+                          y2={y + 17}
+                          stroke={
+                            temaImpressao === "escuro" ? "#f8fafc" : "#0f172a"
+                          }
+                          strokeWidth="1.8"
+                        />
+                      </>
+                    )}
                     <text
                       x={640}
                       y={y + 15}
@@ -353,8 +435,14 @@ ${htmlInterno}
                       fontSize="11"
                       fontFamily="monospace"
                     >
-                      {formatarDecimal(v, idioma, 1)}% [{formatarDecimal(lo, idioma, 1)}–
-                      {formatarDecimal(hi, idioma, 1)}]
+                      {formatarDecimal(v, idioma, 1)}%
+                      {isCitoplasma
+                        ? ` (${r.relatorio["Com Citoplasma"] ?? 0}/${det})`
+                        : ` [${formatarDecimal(lo, idioma, 1)}–${formatarDecimal(
+                            hi,
+                            idioma,
+                            1
+                          )}]`}
                     </text>
                   </g>
                 );
@@ -368,20 +456,61 @@ ${htmlInterno}
           <h2>3. Tabela Analítica por Amostra</h2>
           <table className="print-table">
             <thead>
-              <tr>
-                <th>{t.col_file}</th>
-                <th className="num">{t.col_detected}</th>
-                <th className="num">{t.col_live}</th>
-                <th className="num">{t.col_dead}</th>
-                <th className="num">{t.col_undetermined}</th>
-                <th className="num">{t.col_viability}</th>
-                <th className="num">{t.col_roi}</th>
-                <th className="num">{t.col_edits}</th>
-              </tr>
+              {isCitoplasma ? (
+                <tr>
+                  <th>{t.col_file}</th>
+                  <th className="num">{t.col_detected}</th>
+                  <th className="num">{t.card_with_cytoplasm}</th>
+                  <th className="num">{t.card_cyto_area}</th>
+                  <th className="num">{t.card_nuc_area}</th>
+                  <th className="num">{t.card_nc_ratio}</th>
+                  <th className="num">{t.col_roi}</th>
+                  <th className="num">{t.col_edits}</th>
+                </tr>
+              ) : (
+                <tr>
+                  <th>{t.col_file}</th>
+                  <th className="num">{t.col_detected}</th>
+                  <th className="num">{t.col_live}</th>
+                  <th className="num">{t.col_dead}</th>
+                  <th className="num">{t.col_undetermined}</th>
+                  <th className="num">{t.col_viability}</th>
+                  <th className="num">{t.col_roi}</th>
+                  <th className="num">{t.col_edits}</th>
+                </tr>
+              )}
             </thead>
             <tbody>
               {validos.map((r) => {
-                const det = r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0;
+                const det =
+                  r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0;
+                if (isCitoplasma) {
+                  const comCyto = r.relatorio["Com Citoplasma"] ?? 0;
+                  const pctCyto =
+                    r.relatorio["Pct Com Citoplasma (%)"] ??
+                    (det > 0 ? (comCyto / det) * 100 : 0);
+                  const areaCyto = r.relatorio["Área Média Citoplasma (px²)"] ?? 0;
+                  const areaNuc = r.relatorio["Área Média Núcleo (px²)"] ?? 0;
+                  const razaoNC = r.relatorio["Razão N:C Média"] ?? 0;
+                  return (
+                    <tr key={r.id}>
+                      <td>{r.relatorio.Arquivo}</td>
+                      <td className="num">{formatarInteiro(det, idioma)}</td>
+                      <td className="num">
+                        {formatarInteiro(comCyto, idioma)} (
+                        {formatarPercentual(pctCyto, idioma, 1)})
+                      </td>
+                      <td className="num">{formatarDecimal(areaCyto, idioma, 1)} px²</td>
+                      <td className="num">{formatarDecimal(areaNuc, idioma, 1)} px²</td>
+                      <td className="num">{formatarDecimal(razaoNC, idioma, 2)}</td>
+                      <td className="num">{r.relatorio.ROI ?? "Imagem Completa"}</td>
+                      <td className="num">
+                        {formatarInteiro(r.manual_edits?.length ?? 0, idioma)}
+                      </td>
+                    </tr>
+                  );
+                }
+
                 const viv = r.relatorio["Viáveis (Verde)"] ?? 0;
                 const mor = r.relatorio["Mortas (Amarelo)"] ?? 0;
                 const ind =
@@ -421,9 +550,13 @@ ${htmlInterno}
                       )
                     </td>
                     <td className="num">
-                      <strong>{formatarViabilidadeIC(viab, lo, hi, idioma)}</strong>
+                      <strong>
+                        {formatarViabilidadeIC(viab, lo, hi, idioma)}
+                      </strong>
                     </td>
-                    <td className="num">{r.relatorio.ROI ?? "Imagem Completa"}</td>
+                    <td className="num">
+                      {r.relatorio.ROI ?? "Imagem Completa"}
+                    </td>
                     <td className="num">
                       {formatarInteiro(r.manual_edits?.length ?? 0, idioma)}
                     </td>
@@ -439,6 +572,12 @@ ${htmlInterno}
           <h2>4. Parâmetros de Calibração e Auditoria de Edições Manuais</h2>
           <div className="print-params-box">
             <div>
+              <strong>Tipo de Análise:</strong>{" "}
+              {isCitoplasma
+                ? "Segmentação de Citoplasma (Núcleo + Citoplasma Verde)"
+                : "Viabilidade Celular (Células Vivas / Mortas)"}
+            </div>
+            <div>
               <strong>Motor de Segmentação:</strong>{" "}
               {parametros.motor_segmentacao === "stardist"
                 ? "StarDist 2D (Schmidt et al., 2018)"
@@ -446,16 +585,39 @@ ${htmlInterno}
                 ? "Cellpose 2D (Stringer et al., 2021)"
                 : "Watershed Clássico"}
             </div>
-            <div>
-              <strong>Fórmula de Viabilidade:</strong> {parametros.formula_viabilidade}
-            </div>
+            {isCitoplasma ? (
+              <>
+                <div>
+                  <strong>Raio de Expansão de Citoplasma:</strong>{" "}
+                  {parametros.raio_citoplasma ?? 25} px
+                </div>
+                <div>
+                  <strong>Sensibilidade Citoplasma (Verde):</strong>{" "}
+                  {parametros.bias_verde}
+                </div>
+                <div>
+                  <strong>Sensibilidade Núcleos (Azul):</strong>{" "}
+                  {parametros.bias_azul}
+                </div>
+              </>
+            ) : (
+              <>
+                <div>
+                  <strong>Fórmula de Viabilidade:</strong>{" "}
+                  {parametros.formula_viabilidade}
+                </div>
+                <div>
+                  <strong>Bias Otsu (Azul / Verde / Amarelo):</strong>{" "}
+                  {parametros.bias_azul} / {parametros.bias_verde} /{" "}
+                  {parametros.bias_amarelo}
+                </div>
+              </>
+            )}
             <div>
               <strong>Filtro Bilateral:</strong>{" "}
-              {parametros.aplicar_bilateral ? "Ativado (d=5, sigma=50)" : "Desativado"}
-            </div>
-            <div>
-              <strong>Bias Otsu (Azul / Verde / Amarelo):</strong> {parametros.bias_azul} /{" "}
-              {parametros.bias_verde} / {parametros.bias_amarelo}
+              {parametros.aplicar_bilateral
+                ? "Ativado (d=5, sigma=50)"
+                : "Desativado"}
             </div>
             <div>
               <strong>Circularidade Mínima:</strong>{" "}
@@ -463,7 +625,9 @@ ${htmlInterno}
             </div>
             <div>
               <strong>Área Máxima do Núcleo:</strong>{" "}
-              {parametros.area_maxima ? `${parametros.area_maxima} px²` : "Automático"}
+              {parametros.area_maxima
+                ? `${parametros.area_maxima} px²`
+                : "Automático"}
             </div>
             <div>
               <strong>Região de Interesse (ROI):</strong>{" "}
@@ -518,45 +682,66 @@ ${htmlInterno}
         <section className="print-section">
           <h2>5. Painel Comparativo Lado a Lado (Original | Processada)</h2>
           <div className="print-samples-pair-list">
-            {validos.slice(0, 8).map((r) => (
-              <div key={r.id} className="print-sample-comparison-card">
-                <div className="print-sample-card-header">
-                  <strong>{r.relatorio.Arquivo}</strong>
-                  <span className="mono-tag">
-                    {formatarViabilidadeIC(
-                      r.relatorio["Viabilidade (%)"],
-                      r.relatorio["IC 95% Baixo"],
-                      r.relatorio["IC 95% Alto"],
-                      idioma
-                    )}
-                  </span>
+            {validos.slice(0, 8).map((r) => {
+              const det =
+                r.relatorio.Detectados ?? r.relatorio["Total (Azul)"] ?? 0;
+              return (
+                <div key={r.id} className="print-sample-comparison-card">
+                  <div className="print-sample-card-header">
+                    <strong>{r.relatorio.Arquivo}</strong>
+                    <span className="mono-tag">
+                      {isCitoplasma
+                        ? `${formatarDecimal(
+                            r.relatorio["Pct Com Citoplasma (%)"] ?? 0,
+                            idioma,
+                            1
+                          )}% com citoplasma`
+                        : formatarViabilidadeIC(
+                            r.relatorio["Viabilidade (%)"],
+                            r.relatorio["IC 95% Baixo"],
+                            r.relatorio["IC 95% Alto"],
+                            idioma
+                          )}
+                    </span>
+                  </div>
+                  <div className="print-sample-pair">
+                    <figure>
+                      <img
+                        src={`data:image/png;base64,${r.original_png_b64}`}
+                        alt={`Original ${r.relatorio.Arquivo}`}
+                      />
+                      <figcaption>A · Original</figcaption>
+                    </figure>
+                    <figure>
+                      <img
+                        src={`data:image/png;base64,${r.processada_png_b64}`}
+                        alt={`Processada ${r.relatorio.Arquivo}`}
+                      />
+                      <figcaption>
+                        {isCitoplasma
+                          ? `B · Segmentada (Núcleos: ${formatarInteiro(
+                              det,
+                              idioma
+                            )} | Com Citoplasma: ${formatarInteiro(
+                              r.relatorio["Com Citoplasma"] ?? 0,
+                              idioma
+                            )})`
+                          : `B · Segmentada (Detectados: ${formatarInteiro(
+                              det,
+                              idioma
+                            )} | Vivas: ${formatarInteiro(
+                              r.relatorio["Viáveis (Verde)"],
+                              idioma
+                            )} | Mortas: ${formatarInteiro(
+                              r.relatorio["Mortas (Amarelo)"],
+                              idioma
+                            )})`}
+                      </figcaption>
+                    </figure>
+                  </div>
                 </div>
-                <div className="print-sample-pair">
-                  <figure>
-                    <img
-                      src={`data:image/png;base64,${r.original_png_b64}`}
-                      alt={`Original ${r.relatorio.Arquivo}`}
-                    />
-                    <figcaption>A · Original</figcaption>
-                  </figure>
-                  <figure>
-                    <img
-                      src={`data:image/png;base64,${r.processada_png_b64}`}
-                      alt={`Processada ${r.relatorio.Arquivo}`}
-                    />
-                    <figcaption>
-                      B · Segmentada (Detectados:{" "}
-                      {formatarInteiro(
-                        r.relatorio.Detectados ?? r.relatorio["Total (Azul)"],
-                        idioma
-                      )}{" "}
-                      | Vivas: {formatarInteiro(r.relatorio["Viáveis (Verde)"], idioma)} |
-                      Mortas: {formatarInteiro(r.relatorio["Mortas (Amarelo)"], idioma)})
-                    </figcaption>
-                  </figure>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 

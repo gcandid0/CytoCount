@@ -14,6 +14,7 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw, ImageFont
 from scipy import ndimage as ndi
+from skimage.filters import threshold_triangle
 from skimage.segmentation import watershed
 
 try:
@@ -94,15 +95,81 @@ def calcular_estatisticas_unificadas(
     eh_jpeg: bool = False,
     manual_edits: Optional[list[dict[str, Any]]] = None,
     motor_segmentacao: str = "watershed",
+    tipo_analise: str = "viabilidade",
 ) -> dict[str, Any]:
     """
     FONTE ÚNICA DA VERDADE para todas as contagens e porcentagens no CytoCount:
-      - detectados = todos os núcleos segmentados (len(tabela_celulas))
-      - vivas, mortas = classificadas
-      - indeterminadas = detectados - vivas - mortas
-      - viabilidade = vivas / (vivas + mortas) [ou vivas / detectados no modo Rigoroso]
+      - Modo Viabilidade: detectados = todos os núcleos (len(tabela_celulas)), vivas, mortas, indeterminadas, IC 95% Wilson
+      - Modo Citoplasma: morfometria celular (núcleo + citoplasma verde), área média, relação N:C
     """
     detectados = len(tabela_celulas)
+    roi_str = (
+        f"{roi_aplicado['w']}x{roi_aplicado['h']} ({roi_aplicado['x']},{roi_aplicado['y']})"
+        if roi_aplicado
+        else "Imagem Completa"
+    )
+
+    n_edicoes = len(manual_edits) if manual_edits else 0
+    mapa_motores = {
+        "watershed": "Watershed Clássico",
+        "stardist": "StarDist 2D",
+        "cellpose": "Cellpose 2D",
+    }
+    nome_motor = mapa_motores.get((motor_segmentacao or "watershed").lower(), "Watershed Clássico")
+
+    eh_citoplasma = (tipo_analise or "").lower() == "citoplasma"
+    if eh_citoplasma:
+        com_cito = sum(
+            1 for c in tabela_celulas
+            if c.get("area_citoplasma_px", 0) > 5 or c.get("classificacao") == "com_citoplasma"
+        )
+        sem_cito = max(0, detectados - com_cito)
+        pct_com_cito = round((com_cito / detectados) * 100.0, 1) if detectados > 0 else 0.0
+        pct_sem_cito = round((sem_cito / detectados) * 100.0, 1) if detectados > 0 else 0.0
+
+        areas_nuc = [float(c.get("area_px", 0)) for c in tabela_celulas]
+        areas_cito = [float(c.get("area_citoplasma_px", 0)) for c in tabela_celulas]
+        areas_tot = [an + ac for an, ac in zip(areas_nuc, areas_cito)]
+        razoes_nc = [float(c["razao_nc"]) for c in tabela_celulas if c.get("razao_nc") is not None]
+
+        media_area_nuc = round(float(np.mean(areas_nuc)), 1) if areas_nuc else 0.0
+        media_area_cito = round(float(np.mean(areas_cito)), 1) if areas_cito else 0.0
+        media_area_tot = round(float(np.mean(areas_tot)), 1) if areas_tot else 0.0
+        media_razao_nc = round(float(np.mean(razoes_nc)), 2) if razoes_nc else 0.0
+
+        return {
+            "Arquivo": nome_arquivo,
+            "Tipo de Análise": "citoplasma",
+            "Total (Azul)": detectados,
+            "Detectados": detectados,
+            "Viáveis (Verde)": com_cito,
+            "Mortas (Amarelo)": 0,
+            "Indeterminadas": sem_cito,
+            "Pct Viáveis (%)": pct_com_cito,
+            "Pct Mortas (%)": 0.0,
+            "Pct Indeterminadas (%)": pct_sem_cito,
+            "Base de Cálculo": detectados,
+            "Viabilidade (%)": 0.0,
+            "IC 95% Baixo": 0.0,
+            "IC 95% Alto": 0.0,
+            "Viabilidade Formatada PT": "—",
+            "Viabilidade Formatada EN": "—",
+            "Viabilidade Formatada ES": "—",
+            "Alerta Indeterminadas": False,
+            "ROI": roi_str,
+            "ROI Dict": roi_aplicado,
+            "Edições Manuais": n_edicoes,
+            "Motor de Segmentação": nome_motor,
+            "Formato com perda (JPEG)": "Sim" if eh_jpeg else "Não",
+            "Com Citoplasma": com_cito,
+            "Sem Citoplasma": sem_cito,
+            "Pct Com Citoplasma (%)": pct_com_cito,
+            "Área Média Núcleo (px²)": media_area_nuc,
+            "Área Média Citoplasma (px²)": media_area_cito,
+            "Área Média Total (px²)": media_area_tot,
+            "Razão N:C Média": media_razao_nc,
+        }
+
     vivas = sum(1 for c in tabela_celulas if c.get("classificacao") == "viavel")
     mortas = sum(1 for c in tabela_celulas if c.get("classificacao") == "morta")
     indeterminadas = max(0, detectados - vivas - mortas)
@@ -118,22 +185,9 @@ def calcular_estatisticas_unificadas(
     ic_baixo, ic_alto = wilson(vivas, base_calculo)
     alerta_indeterminadas = pct_indet > 15.0
 
-    roi_str = (
-        f"{roi_aplicado['w']}x{roi_aplicado['h']} ({roi_aplicado['x']},{roi_aplicado['y']})"
-        if roi_aplicado
-        else "Imagem Completa"
-    )
-
-    n_edicoes = len(manual_edits) if manual_edits else 0
-    mapa_motores = {
-        "watershed": "Watershed Clássico",
-        "stardist": "StarDist 2D",
-        "cellpose": "Cellpose 2D",
-    }
-    nome_motor = mapa_motores.get((motor_segmentacao or "watershed").lower(), "Watershed Clássico")
-
     return {
         "Arquivo": nome_arquivo,
+        "Tipo de Análise": "viabilidade",
         "Total (Azul)": detectados,
         "Detectados": detectados,
         "Viáveis (Verde)": vivas,
@@ -304,6 +358,24 @@ def limiar_otsu_com_ajuste(canal, bias=0):
     return mask.astype(np.uint8), valor_final, canal_suave
 
 
+def limiar_citoplasma_com_ajuste(canal: np.ndarray, bias: int = 0) -> tuple[np.ndarray, float, np.ndarray]:
+    """
+    Limiarização especializada para citoplasma (filamentos/sinal de GFP/FITC):
+    Utiliza algoritmo Triangle (Zack et al.) que detecta com precisão o vale entre o pico escuro
+    de fundo e a cauda de fluorescência citoplasmática, ajustado pelo bias do usuário.
+    """
+    canal_8u = cv2.normalize(canal, None, 0, 255, cv2.NORM_MINMAX).astype(np.uint8)
+    canal_suave = cv2.GaussianBlur(canal_8u, (5, 5), 0)
+    try:
+        thr_tri = float(threshold_triangle(canal_suave))
+    except Exception:
+        thr_tri, _ = cv2.threshold(canal_suave, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
+    # bias positivo diminui o limiar (captura citoplasma tênue com mais sensibilidade)
+    valor_final = float(np.clip(thr_tri - bias * 1.2, 5, 250))
+    _, mask = cv2.threshold(canal_suave, valor_final, 255, cv2.THRESH_BINARY)
+    return mask.astype(np.uint8), valor_final, canal_suave
+
+
 def remover_ruido_pontual(mask, area_minima_px=RUIDO_AREA_MINIMA_PX):
     n_labels, labels, stats, _ = cv2.connectedComponentsWithStats(mask, connectivity=8)
     if n_labels <= 1:
@@ -455,10 +527,31 @@ def desenhar_celulas_de_tabela(
     Desenha contornos a partir da lista de células (suportando contornos poligonais originais
     e células adicionadas/editadas manualmente pelo usuário).
     Cores BGR:
-      - Padrão: viavel = Verde (0, 255, 0), morta = Amarelo (0, 255, 255), indeterminada = Azul (255, 110, 40)
-      - Daltonismo (Okabe-Ito): viavel = Ciano-Verde (180, 220, 0), morta = Magenta/Vermelho (120, 60, 255), indet = Azul claro (255, 190, 80)
+      - Citoplasma: Citoplasma = Verde (0, 230, 118), Núcleo = Ciano/Azul (255, 180, 0)
+      - Viabilidade: viavel = Verde (0, 255, 0), morta = Amarelo (0, 255, 255), indeterminada = Azul (255, 110, 40)
     """
     saida = img_bgr.copy()
+    eh_modo_cito = any(c.get("classificacao") in ("com_citoplasma", "sem_citoplasma") for c in tabela_celulas)
+
+    if eh_modo_cito:
+        cor_cito = (0, 230, 118)
+        cor_nuc = (255, 180, 0)
+        for cel in tabela_celulas:
+            pts_cito = cel.get("contorno_citoplasma_pts")
+            pts = cel.get("contorno_pts")
+            if pts_cito and isinstance(pts_cito, list) and len(pts_cito) >= 3:
+                arr_cito = np.array(pts_cito, dtype=np.int32).reshape((-1, 1, 2))
+                cv2.drawContours(saida, [arr_cito], -1, cor_cito, 1)
+            if pts and isinstance(pts, list) and len(pts) >= 3:
+                arr_pts = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
+                cv2.drawContours(saida, [arr_pts], -1, cor_nuc, 1)
+            else:
+                cx = int(cel.get("centro_x", 0))
+                cy = int(cel.get("centro_y", 0))
+                raio = max(3, int(round(float(cel.get("raio_eq", 7.0)))))
+                cv2.circle(saida, (cx, cy), raio, cor_nuc, 1, cv2.LINE_AA)
+        return saida
+
     if paleta_daltonismo:
         cores = {
             "viavel": (180, 230, 0),
@@ -1086,6 +1179,104 @@ def classificar_nucleos(
     }
 
 
+def extrair_tabela_citoplasma(
+    lab_azul: np.ndarray,
+    labels_cito: np.ndarray,
+    canal_azul: np.ndarray,
+    canal_verde: np.ndarray,
+    corrigido_verde: np.ndarray,
+) -> list[dict[str, Any]]:
+    """
+    Morfometria de alta precisão para segmentação de citoplasma:
+    Extrai área nuclear, área citoplasmática (verde), área celular total, relação N:C e contornos vetoriais.
+    """
+    ids = [int(l) for l in np.unique(lab_azul) if l != 0]
+    if not ids:
+        return []
+
+    slices_cito = ndi.find_objects(labels_cito)
+    slices_nuc = ndi.find_objects(lab_azul)
+    H, W = lab_azul.shape
+    tabela = []
+
+    for cid in ids:
+        sl = (
+            slices_cito[cid - 1]
+            if (cid - 1 < len(slices_cito) and slices_cito[cid - 1] is not None)
+            else (slices_nuc[cid - 1] if cid - 1 < len(slices_nuc) else None)
+        )
+        if sl is None:
+            continue
+
+        y0 = max(0, sl[0].start - 2)
+        y1 = min(H, sl[0].stop + 2)
+        x0 = max(0, sl[1].start - 2)
+        x1 = min(W, sl[1].stop + 2)
+
+        sub_nuc = lab_azul[y0:y1, x0:x1] == cid
+        sub_cel = labels_cito[y0:y1, x0:x1] == cid
+
+        area_nuc = int(sub_nuc.sum())
+        area_tot = int(sub_cel.sum())
+        area_cito = max(0, area_tot - area_nuc)
+
+        razao_nc = round(area_nuc / area_cito, 2) if area_cito > 5 else None
+
+        M = cv2.moments(np.uint8(sub_nuc) * 255)
+        if M["m00"] > 0:
+            cx = int(round(x0 + M["m10"] / M["m00"]))
+            cy = int(round(y0 + M["m01"] / M["m00"]))
+        else:
+            cx = (x0 + x1) // 2
+            cy = (y0 + y1) // 2
+
+        # Contorno vetorial do núcleo
+        cn, _ = cv2.findContours(np.uint8(sub_nuc) * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        c_nuc_pts = []
+        if cn:
+            c_m = max(cn, key=cv2.contourArea)
+            eps = max(0.8, 0.02 * cv2.arcLength(c_m, True))
+            app = cv2.approxPolyDP(c_m, eps, True)
+            c_nuc_pts = [[int(pt[0][0] + x0), int(pt[0][1] + y0)] for pt in app[:20]]
+
+        # Contorno vetorial da célula total / citoplasma
+        cc, _ = cv2.findContours(np.uint8(sub_cel) * 255, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        c_cito_pts = []
+        if cc:
+            c_m = max(cc, key=cv2.contourArea)
+            eps = max(0.8, 0.02 * cv2.arcLength(c_m, True))
+            app = cv2.approxPolyDP(c_m, eps, True)
+            c_cito_pts = [[int(pt[0][0] + x0), int(pt[0][1] + y0)] for pt in app[:24]]
+
+        mean_int = round(float(corrigido_verde[y0:y1, x0:x1][sub_cel].mean()), 1) if area_tot > 0 else 0.0
+        int_verde = round(float(canal_verde[y0:y1, x0:x1][sub_cel].mean()), 1) if area_tot > 0 else 0.0
+        int_azul = round(float(canal_azul[y0:y1, x0:x1][sub_nuc].mean()), 1) if area_nuc > 0 else 0.0
+
+        classe = "com_citoplasma" if area_cito > 5 else "sem_citoplasma"
+
+        tabela.append({
+            "celula_id": cid,
+            "area_px": area_nuc,
+            "area_citoplasma_px": area_cito,
+            "area_total_px": area_tot,
+            "area_regiao_px": area_tot,
+            "centro_x": cx,
+            "centro_y": cy,
+            "raio_eq": round(float(np.sqrt(max(1, area_nuc) / np.pi)), 1),
+            "mean_intensity": mean_int,
+            "intensidade_verde": int_verde,
+            "intensidade_azul": int_azul,
+            "cobertura_verde_pct": round(float(area_cito / max(1, area_tot) * 100), 1),
+            "cobertura_amarela_pct": 0.0,
+            "razao_nc": razao_nc,
+            "classificacao": classe,
+            "contorno_pts": c_nuc_pts,
+            "contorno_citoplasma_pts": c_cito_pts,
+        })
+
+    return tabela
+
+
 # =========================================================================
 # LEGENDA EM IMAGEM EXPORTADA COM PIL/TRUETYPE (ACENTOS E IDIOMAS PT/EN/ES)
 # =========================================================================
@@ -1208,23 +1399,9 @@ def desenhar_legenda_exportacao_pil(
         return cv2.cvtColor(np.array(img_base_rgb), cv2.COLOR_RGB2BGR)
 
     # 2. Barra de Rodapé Científica Externa (zero oclusão de células, tipografia limpa e sem cortes)
+    eh_citoplasma = relatorio.get("Tipo de Análise") == "citoplasma"
     detectados = int(relatorio.get("Detectados", relatorio.get("Total (Azul)", 0)))
-    vivas = int(relatorio.get("Viáveis (Verde)", 0))
-    mortas = int(relatorio.get("Mortas (Amarelo)", 0))
-    indet = int(relatorio.get("Indeterminadas", max(0, detectados - vivas - mortas)))
-    pct_viv = float(relatorio.get("Pct Viáveis (%)", (vivas / detectados * 100.0) if detectados > 0 else 0.0))
-    pct_mor = float(relatorio.get("Pct Mortas (%)", (mortas / detectados * 100.0) if detectados > 0 else 0.0))
-    pct_ind = float(relatorio.get("Pct Indeterminadas (%)", (indet / detectados * 100.0) if detectados > 0 else 0.0))
-    viab = float(relatorio.get("Viabilidade (%)", 0.0))
-    ic_lo = float(relatorio.get("IC 95% Baixo", 0.0))
-    ic_hi = float(relatorio.get("IC 95% Alto", 0.0))
-    base_calc = int(relatorio.get("Base de Cálculo", vivas + mortas))
-
-    viab_fmt = formatar_viabilidade_padrao(viab, ic_lo, ic_hi, idioma, base_calc)
     det_fmt = formatar_inteiro_locale(detectados, idioma)
-    viv_fmt = f"{formatar_inteiro_locale(vivas, idioma)} ({formatar_decimal_locale(pct_viv, idioma, 1)}%)"
-    mor_fmt = f"{formatar_inteiro_locale(mortas, idioma)} ({formatar_decimal_locale(pct_mor, idioma, 1)}%)"
-    ind_fmt = f"{formatar_inteiro_locale(indet, idioma)} ({formatar_decimal_locale(pct_ind, idioma, 1)}%)"
 
     eh_claro = tema_fundo == "claro"
     bg_footer = (248, 250, 252) if eh_claro else (11, 18, 21)
@@ -1237,30 +1414,82 @@ def desenhar_legenda_exportacao_pil(
     cor_amarela = ((210, 50, 100) if eh_claro else (255, 90, 140)) if paleta_daltonismo else ((217, 119, 6) if eh_claro else (251, 191, 36))
     cor_indet = (100, 116, 139) if eh_claro else (148, 163, 184)
 
-    if idioma == "en":
-        metricas = [
-            ("Detected:", det_fmt, cor_azul),
-            ("Live:", viv_fmt, cor_verde),
-            ("Dead:", mor_fmt, cor_amarela),
-            ("Undet.:", ind_fmt, cor_indet),
-        ]
-        lbl_viab = f"Viability: {viab_fmt}"
-    elif idioma == "es":
-        metricas = [
-            ("Detectados:", det_fmt, cor_azul),
-            ("Vivas:", viv_fmt, cor_verde),
-            ("Muertas:", mor_fmt, cor_amarela),
-            ("Indet.:", ind_fmt, cor_indet),
-        ]
-        lbl_viab = f"Viabilidad: {viab_fmt}"
+    if eh_citoplasma:
+        com_cito = int(relatorio.get("Com Citoplasma", 0))
+        pct_cito = float(relatorio.get("Pct Com Citoplasma (%)", 0.0))
+        area_nuc = float(relatorio.get("Área Média Núcleo (px²)", 0.0))
+        area_cito = float(relatorio.get("Área Média Citoplasma (px²)", 0.0))
+        razao_nc = float(relatorio.get("Razão N:C Média", 0.0))
+
+        cito_fmt = f"{formatar_inteiro_locale(com_cito, idioma)} ({formatar_decimal_locale(pct_cito, idioma, 1)}%)"
+        areas_fmt = f"{formatar_decimal_locale(area_nuc, idioma, 1)} / {formatar_decimal_locale(area_cito, idioma, 1)} px²"
+        nc_fmt = formatar_decimal_locale(razao_nc, idioma, 2)
+
+        if idioma == "en":
+            metricas = [
+                ("Detected:", det_fmt, cor_azul),
+                ("With Cytoplasm:", cito_fmt, cor_verde),
+                ("Mean Area (Nuc/Cyto):", areas_fmt, txt_primario),
+                ("N:C Ratio:", nc_fmt, cor_azul),
+            ]
+            lbl_viab = "Mode: Cytoplasm"
+        elif idioma == "es":
+            metricas = [
+                ("Detectados:", det_fmt, cor_azul),
+                ("Con citoplasma:", cito_fmt, cor_verde),
+                ("Área media (Núc/Cito):", areas_fmt, txt_primario),
+                ("Relación N:C:", nc_fmt, cor_azul),
+            ]
+            lbl_viab = "Modo: Citoplasma"
+        else:
+            metricas = [
+                ("Detectados:", det_fmt, cor_azul),
+                ("Com Citoplasma:", cito_fmt, cor_verde),
+                ("Área Média (Núc/Cito):", areas_fmt, txt_primario),
+                ("Razão N:C:", nc_fmt, cor_azul),
+            ]
+            lbl_viab = "Modo: Citoplasma"
     else:
-        metricas = [
-            ("Detectados:", det_fmt, cor_azul),
-            ("Vivas:", viv_fmt, cor_verde),
-            ("Mortas:", mor_fmt, cor_amarela),
-            ("Indet.:", ind_fmt, cor_indet),
-        ]
-        lbl_viab = f"Viabilidade: {viab_fmt}"
+        vivas = int(relatorio.get("Viáveis (Verde)", 0))
+        mortas = int(relatorio.get("Mortas (Amarelo)", 0))
+        indet = int(relatorio.get("Indeterminadas", max(0, detectados - vivas - mortas)))
+        pct_viv = float(relatorio.get("Pct Viáveis (%)", (vivas / detectados * 100.0) if detectados > 0 else 0.0))
+        pct_mor = float(relatorio.get("Pct Mortas (%)", (mortas / detectados * 100.0) if detectados > 0 else 0.0))
+        pct_ind = float(relatorio.get("Pct Indeterminadas (%)", (indet / detectados * 100.0) if detectados > 0 else 0.0))
+        viab = float(relatorio.get("Viabilidade (%)", 0.0))
+        ic_lo = float(relatorio.get("IC 95% Baixo", 0.0))
+        ic_hi = float(relatorio.get("IC 95% Alto", 0.0))
+        base_calc = int(relatorio.get("Base de Cálculo", vivas + mortas))
+
+        viab_fmt = formatar_viabilidade_padrao(viab, ic_lo, ic_hi, idioma, base_calc)
+        viv_fmt = f"{formatar_inteiro_locale(vivas, idioma)} ({formatar_decimal_locale(pct_viv, idioma, 1)}%)"
+        mor_fmt = f"{formatar_inteiro_locale(mortas, idioma)} ({formatar_decimal_locale(pct_mor, idioma, 1)}%)"
+        ind_fmt = f"{formatar_inteiro_locale(indet, idioma)} ({formatar_decimal_locale(pct_ind, idioma, 1)}%)"
+
+        if idioma == "en":
+            metricas = [
+                ("Detected:", det_fmt, cor_azul),
+                ("Live:", viv_fmt, cor_verde),
+                ("Dead:", mor_fmt, cor_amarela),
+                ("Undet.:", ind_fmt, cor_indet),
+            ]
+            lbl_viab = f"Viability: {viab_fmt}"
+        elif idioma == "es":
+            metricas = [
+                ("Detectados:", det_fmt, cor_azul),
+                ("Vivas:", viv_fmt, cor_verde),
+                ("Muertas:", mor_fmt, cor_amarela),
+                ("Indet.:", ind_fmt, cor_indet),
+            ]
+            lbl_viab = f"Viabilidad: {viab_fmt}"
+        else:
+            metricas = [
+                ("Detectados:", det_fmt, cor_azul),
+                ("Vivas:", viv_fmt, cor_verde),
+                ("Mortas:", mor_fmt, cor_amarela),
+                ("Indet.:", ind_fmt, cor_indet),
+            ]
+            lbl_viab = f"Viabilidade: {viab_fmt}"
 
     # Escala tipográfica adaptativa à largura da imagem (garante zero corte em qualquer resolução)
     tam_base = max(11, min(20, int(W * 0.016)))
@@ -1419,6 +1648,73 @@ def processar_canais_em_memoria(
         "motor_segmentacao": motor_seg,
     }
     n_azul, lab_azul, mask_azul, thr_azul, p_azul = segmentar_canal(canal_azul, param_azul_especifico)
+
+    tipo_analise = (parametros.get("tipo_analise") or "viabilidade").lower()
+    if tipo_analise == "citoplasma":
+        canal_verde = normalizar_robusto(g_float)
+        corrigido_verde = corrigir_fundo(canal_verde, kernel_tophat, aplicar_bilateral)
+        mask_verde, thr_verde, _ = limiar_citoplasma_com_ajuste(corrigido_verde, parametros.get("bias_verde", 0))
+        mask_verde = limpar_mascara(mask_verde)
+
+        raio_cito_param = parametros.get("raio_citoplasma")
+        raio_expansao = (
+            max(2, int(raio_cito_param))
+            if (raio_cito_param is not None and int(raio_cito_param) > 0)
+            else 25
+        )
+
+        fundo_nuclear = (lab_azul == 0).astype(np.uint8)
+        dist_ext = cv2.distanceTransform(fundo_nuclear, cv2.DIST_L2, 5)
+        dominio_celular = (lab_azul > 0) | ((mask_verde > 0) & (dist_ext <= raio_expansao))
+        labels_cito = watershed(dist_ext, markers=lab_azul, mask=dominio_celular).astype(np.int32)
+
+        tabela_celulas = extrair_tabela_citoplasma(
+            lab_azul=lab_azul,
+            labels_cito=labels_cito,
+            canal_azul=canal_azul,
+            canal_verde=canal_verde,
+            corrigido_verde=corrigido_verde,
+        )
+
+        eh_jpeg = (nome_arquivo or "").lower().endswith((".jpg", ".jpeg"))
+        idioma = parametros.get("idioma", "pt")
+
+        relatorio = calcular_estatisticas_unificadas(
+            tabela_celulas=tabela_celulas,
+            formula_viabilidade="",
+            nome_arquivo=nome_arquivo,
+            roi_aplicado=roi_aplicado,
+            eh_jpeg=eh_jpeg,
+            manual_edits=[],
+            motor_segmentacao=motor_seg,
+            tipo_analise="citoplasma",
+        )
+
+        saida_limpa_bgr = img_bgr.copy()
+        # Citoplasma em Verde (0, 230, 118)
+        saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, labels_cito, (0, 230, 118), 1)
+        # Núcleo em Ciano/Azul (255, 180, 0)
+        saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, lab_azul, (255, 180, 0), 1)
+        saida_rgb_tela = cv2.cvtColor(saida_limpa_bgr, cv2.COLOR_BGR2RGB)
+
+        saida_bgr_salvar = desenhar_legenda_exportacao_pil(
+            saida_limpa_bgr,
+            relatorio,
+            idioma=idioma,
+            um_por_pixel=parametros.get("um_por_pixel"),
+        )
+
+        mascaras = {
+            "azul": mask_azul,
+            "verde": mask_verde,
+            "amarelo": np.zeros_like(mask_azul),
+            "labels_citoplasma": labels_cito,
+            "limiares": {"azul": thr_azul, "verde": thr_verde, "amarelo": 0},
+            "params_auto": {"azul": p_azul, "raio_citoplasma": raio_expansao},
+            "tabela_celulas": tabela_celulas,
+            "eh_jpeg": eh_jpeg,
+        }
+        return relatorio, saida_rgb_tela, saida_bgr_salvar, original_rgb, mascaras, None
 
     canal_verde = normalizar_robusto(g_float)
     corrigido_verde = corrigir_fundo(canal_verde, kernel_tophat, aplicar_bilateral)

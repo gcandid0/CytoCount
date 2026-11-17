@@ -1,6 +1,7 @@
 import { RelatorioAmostra } from "../lib/api";
 import { Idioma, TEXTOS } from "../lib/i18n";
 import {
+  formatarDecimal,
   formatarInteiro,
   formatarPercentual,
   formatarViabilidadeIC,
@@ -22,6 +23,69 @@ export default function TabelaRelatorio({
 }) {
   if (relatorios.length === 0) return null;
   const t = TEXTOS[idioma];
+  const ehCito = relatorios[0]?.["Tipo de Análise"] === "citoplasma";
+
+  if (ehCito) {
+    return (
+      <div className="table-wrap">
+        <table className="report-table">
+          <thead>
+            <tr>
+              <th>{t.col_file}</th>
+              <th className="num">{t.col_detected}</th>
+              <th className="num">{t.card_with_cytoplasm}</th>
+              <th className="num">{t.card_cyto_area} (px²)</th>
+              <th className="num">{t.card_nuc_area} (px²)</th>
+              <th className="num">{t.card_nc_ratio}</th>
+              <th className="num">{t.col_roi}</th>
+              <th className="num">{t.col_edits}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {relatorios.map((r, i) => {
+              const id = idPorLinha[i];
+              const det = r.Detectados ?? r["Total (Azul)"] ?? 0;
+              const comCito = r["Com Citoplasma"] ?? 0;
+              const pctCito = r["Pct Com Citoplasma (%)"] ?? (det > 0 ? (comCito / det) * 100 : 0);
+              const areaCito = r["Área Média Citoplasma (px²)"] ?? 0;
+              const areaNuc = r["Área Média Núcleo (px²)"] ?? 0;
+              const razaoNC = r["Razão N:C Média"] ?? 0;
+
+              return (
+                <tr
+                  key={id}
+                  className={id === selecionadoId ? "row-selected" : ""}
+                  onClick={() => onSelecionar(id)}
+                >
+                  <td>{r.Arquivo}</td>
+                  <td className="num">{formatarInteiro(det, idioma)}</td>
+                  <td className="num text-green">
+                    {formatarInteiro(comCito, idioma)}{" "}
+                    <small className="table-pct">
+                      ({formatarPercentual(pctCito, idioma, 1)})
+                    </small>
+                  </td>
+                  <td className="num text-green">
+                    {formatarDecimal(areaCito, idioma, 1)}
+                  </td>
+                  <td className="num text-blue">
+                    {formatarDecimal(areaNuc, idioma, 1)}
+                  </td>
+                  <td className="num">
+                    <span className="pill-viability">
+                      {formatarDecimal(razaoNC, idioma, 2)}
+                    </span>
+                  </td>
+                  <td className="num">{r.ROI ?? "Imagem Completa"}</td>
+                  <td className="num">{formatarInteiro(r["Edições Manuais"] ?? 0, idioma)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  }
 
   return (
     <div className="table-wrap">

@@ -362,11 +362,19 @@ export default function NavegadorResultados({
   // Exportação ImageJ CSV (Results Table) com diálogo nativo "Salvar como"
   const exportarImageJCSV = async () => {
     try {
-      const header = " ,X,Y,Area,Cytoplasm_Area,Mean,Class,Green_Pct,Yellow_Pct\n";
+      const ehCito = sel.relatorio["Tipo de Análise"] === "citoplasma";
+      const header = ehCito
+        ? " ,X,Y,Nucleus_Area,Cytoplasm_Area,Total_Area,NC_Ratio,Mean_Intensity,Status\n"
+        : " ,X,Y,Area,Cytoplasm_Area,Mean,Class,Green_Pct,Yellow_Pct\n";
       const rows = celulas
         .map((c, idx) => {
           const mean = c.mean_intensity ?? Number(((c.cobertura_verde_pct + c.cobertura_amarela_pct) * 1.27).toFixed(1));
           const citoArea = c.area_citoplasma_px ?? 0;
+          if (ehCito) {
+            const totArea = c.area_total_px ?? (c.area_px + citoArea);
+            const nc = c.razao_nc ?? (citoArea > 0 ? Number((c.area_px / citoArea).toFixed(2)) : "");
+            return `${idx + 1},${c.centro_x},${c.centro_y},${c.area_px},${citoArea},${totArea},${nc},${mean},${c.classificacao}`;
+          }
           return `${idx + 1},${c.centro_x},${c.centro_y},${c.area_px},${citoArea},${mean},${c.classificacao},${c.cobertura_verde_pct},${c.cobertura_amarela_pct}`;
         })
         .join("\n");
@@ -536,7 +544,10 @@ export default function NavegadorResultados({
         <h3 className="viewer-title">{t.title_results}</h3>
         <ul className="sample-list">
           {validos.map((r) => {
-            const vSample = r.relatorio["Viabilidade (%)"] ?? 0;
+            const ehCito = r.relatorio["Tipo de Análise"] === "citoplasma";
+            const vSample = ehCito
+              ? r.relatorio["Pct Com Citoplasma (%)"] ?? 0
+              : r.relatorio["Viabilidade (%)"] ?? 0;
             return (
               <li key={r.id}>
                 <button
@@ -563,45 +574,85 @@ export default function NavegadorResultados({
 
       <div className="viewer-main">
         <div className="viewer-header">
-          <div className="viewer-metrics">
-            <div className="metric metric-blue">
-              <span className="metric-value">
-                {formatarInteiro(detectados, idioma)}
-              </span>
-              <span className="metric-label">{t.card_detected}</span>
+          {sel.relatorio["Tipo de Análise"] === "citoplasma" ? (
+            <div className="viewer-metrics">
+              <div className="metric metric-blue">
+                <span className="metric-value">
+                  {formatarInteiro(detectados, idioma)}
+                </span>
+                <span className="metric-label">{t.card_detected}</span>
+              </div>
+              <div className="metric metric-green">
+                <span className="metric-value">
+                  {formatarInteiro(sel.relatorio["Com Citoplasma"] ?? 0, idioma)}{" "}
+                  <small className="metric-pct">
+                    ({formatarPercentual(sel.relatorio["Pct Com Citoplasma (%)"] ?? 0, idioma, 1)})
+                  </small>
+                </span>
+                <span className="metric-label">{t.card_with_cytoplasm}</span>
+              </div>
+              <div className="metric metric-green">
+                <span className="metric-value">
+                  {formatarDecimal(sel.relatorio["Área Média Citoplasma (px²)"] ?? 0, idioma, 1)}{" "}
+                  <small className="metric-pct">px²</small>
+                </span>
+                <span className="metric-label">{t.card_cyto_area}</span>
+              </div>
+              <div className="metric metric-blue">
+                <span className="metric-value">
+                  {formatarDecimal(sel.relatorio["Área Média Núcleo (px²)"] ?? 0, idioma, 1)}{" "}
+                  <small className="metric-pct">px²</small>
+                </span>
+                <span className="metric-label">{t.card_nuc_area}</span>
+              </div>
+              <div className="metric metric-viab">
+                <span className="metric-value metric-value-ic">
+                  {formatarDecimal(sel.relatorio["Razão N:C Média"] ?? 0, idioma, 2)}
+                </span>
+                <span className="metric-label">{t.card_nc_ratio}</span>
+              </div>
             </div>
-            <div className="metric metric-green">
-              <span className="metric-value">
-                {formatarInteiro(vivas, idioma)}{" "}
-                <small className="metric-pct">
-                  ({formatarPercentual(pctVivas, idioma, 1)})
-                </small>
-              </span>
-              <span className="metric-label">{t.card_live}</span>
+          ) : (
+            <div className="viewer-metrics">
+              <div className="metric metric-blue">
+                <span className="metric-value">
+                  {formatarInteiro(detectados, idioma)}
+                </span>
+                <span className="metric-label">{t.card_detected}</span>
+              </div>
+              <div className="metric metric-green">
+                <span className="metric-value">
+                  {formatarInteiro(vivas, idioma)}{" "}
+                  <small className="metric-pct">
+                    ({formatarPercentual(pctVivas, idioma, 1)})
+                  </small>
+                </span>
+                <span className="metric-label">{t.card_live}</span>
+              </div>
+              <div className="metric metric-yellow">
+                <span className="metric-value">
+                  {formatarInteiro(mortas, idioma)}{" "}
+                  <small className="metric-pct">
+                    ({formatarPercentual(pctMortas, idioma, 1)})
+                  </small>
+                </span>
+                <span className="metric-label">{t.card_dead}</span>
+              </div>
+              <div className="metric metric-muted">
+                <span className="metric-value">
+                  {formatarInteiro(indeterminadas, idioma)}{" "}
+                  <small className="metric-pct">
+                    ({formatarPercentual(pctIndet, idioma, 1)})
+                  </small>
+                </span>
+                <span className="metric-label">{t.card_undetermined}</span>
+              </div>
+              <div className="metric metric-viab">
+                <span className="metric-value metric-value-ic">{viabFormatada}</span>
+                <span className="metric-label">{t.card_viability}</span>
+              </div>
             </div>
-            <div className="metric metric-yellow">
-              <span className="metric-value">
-                {formatarInteiro(mortas, idioma)}{" "}
-                <small className="metric-pct">
-                  ({formatarPercentual(pctMortas, idioma, 1)})
-                </small>
-              </span>
-              <span className="metric-label">{t.card_dead}</span>
-            </div>
-            <div className="metric metric-muted">
-              <span className="metric-value">
-                {formatarInteiro(indeterminadas, idioma)}{" "}
-                <small className="metric-pct">
-                  ({formatarPercentual(pctIndet, idioma, 1)})
-                </small>
-              </span>
-              <span className="metric-label">{t.card_undetermined}</span>
-            </div>
-            <div className="metric metric-viab">
-              <span className="metric-value metric-value-ic">{viabFormatada}</span>
-              <span className="metric-label">{t.card_viability}</span>
-            </div>
-          </div>
+          )}
 
           <div className="view-toggle">
             <button
@@ -960,7 +1011,7 @@ export default function NavegadorResultados({
                 >
                   {celulas.map((c) => {
                     const stroke =
-                      c.classificacao === "viavel"
+                      c.classificacao === "viavel" || c.classificacao === "com_citoplasma"
                         ? "#34d399"
                         : c.classificacao === "morta"
                         ? "#fbbf24"
@@ -1124,38 +1175,69 @@ export default function NavegadorResultados({
                   </select>
                 </div>
                 <div className="cells-filter-group">
-                  {(["todas", "viavel", "morta", "indeterminada"] as const).map((f) => (
-                    <button
-                      key={f}
-                      type="button"
-                      className={`filter-pill ${filtroClasse === f ? "active" : ""}`}
-                      onClick={() => setFiltroClasse(f)}
-                    >
-                      {f === "todas"
-                        ? "Todas"
-                        : f === "viavel"
-                        ? t.card_live
-                        : f === "morta"
-                        ? t.card_dead
-                        : t.card_undetermined}
-                    </button>
-                  ))}
+                  {sel.relatorio["Tipo de Análise"] === "citoplasma" ? (
+                    (["todas", "com_citoplasma", "sem_citoplasma"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        className={`filter-pill ${filtroClasse === f ? "active" : ""}`}
+                        onClick={() => setFiltroClasse(f)}
+                      >
+                        {f === "todas"
+                          ? "Todas"
+                          : f === "com_citoplasma"
+                          ? t.card_with_cytoplasm
+                          : t.card_without_cytoplasm}
+                      </button>
+                    ))
+                  ) : (
+                    (["todas", "viavel", "morta", "indeterminada"] as const).map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        className={`filter-pill ${filtroClasse === f ? "active" : ""}`}
+                        onClick={() => setFiltroClasse(f)}
+                      >
+                        {f === "todas"
+                          ? "Todas"
+                          : f === "viavel"
+                          ? t.card_live
+                          : f === "morta"
+                          ? t.card_dead
+                          : t.card_undetermined}
+                      </button>
+                    ))
+                  )}
                 </div>
               </div>
               <div className="cells-table-scroll">
                 <table className="report-table">
                   <thead>
-                    <tr>
-                      <th>ID</th>
-                      <th>Status</th>
-                      <th className="num">X (px)</th>
-                      <th className="num">Y (px)</th>
-                      <th className="num">Núcleo (px²)</th>
-                      <th className="num">Citoplasma (px²)</th>
-                      <th className="num">Mean</th>
-                      <th className="num">Verde (%)</th>
-                      <th className="num">Amarelo (%)</th>
-                    </tr>
+                    {sel.relatorio["Tipo de Análise"] === "citoplasma" ? (
+                      <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th className="num">X (px)</th>
+                        <th className="num">Y (px)</th>
+                        <th className="num">Núcleo (px²)</th>
+                        <th className="num">Citoplasma (px²)</th>
+                        <th className="num">Total (px²)</th>
+                        <th className="num">Mean</th>
+                        <th className="num">Razão N:C</th>
+                      </tr>
+                    ) : (
+                      <tr>
+                        <th>ID</th>
+                        <th>Status</th>
+                        <th className="num">X (px)</th>
+                        <th className="num">Y (px)</th>
+                        <th className="num">Núcleo (px²)</th>
+                        <th className="num">Citoplasma (px²)</th>
+                        <th className="num">Mean</th>
+                        <th className="num">Verde (%)</th>
+                        <th className="num">Amarelo (%)</th>
+                      </tr>
+                    )}
                   </thead>
                   <tbody>
                     {celulasFiltradas.slice(0, 600).map((c) => (
@@ -1173,13 +1255,27 @@ export default function NavegadorResultados({
                           #{c.celula_id} {c.manual ? "*" : ""}
                         </td>
                         <td>
-                          <span className={`cell-badge badge-${c.classificacao}`}>
-                            {c.classificacao === "viavel"
-                              ? t.card_live
-                              : c.classificacao === "morta"
-                              ? t.card_dead
-                              : t.card_undetermined}
-                          </span>
+                          {sel.relatorio["Tipo de Análise"] === "citoplasma" ? (
+                            <span
+                              className={`cell-badge ${
+                                c.classificacao === "com_citoplasma"
+                                  ? "badge-viavel"
+                                  : "badge-indeterminada"
+                              }`}
+                            >
+                              {c.classificacao === "com_citoplasma"
+                                ? t.card_with_cytoplasm
+                                : t.card_without_cytoplasm}
+                            </span>
+                          ) : (
+                            <span className={`cell-badge badge-${c.classificacao}`}>
+                              {c.classificacao === "viavel"
+                                ? t.card_live
+                                : c.classificacao === "morta"
+                                ? t.card_dead
+                                : t.card_undetermined}
+                            </span>
+                          )}
                         </td>
                         <td className="num">{formatarInteiro(c.centro_x, idioma)}</td>
                         <td className="num">{formatarInteiro(c.centro_y, idioma)}</td>
@@ -1187,15 +1283,36 @@ export default function NavegadorResultados({
                         <td className="num">
                           {formatarInteiro(c.area_citoplasma_px ?? 0, idioma)}
                         </td>
-                        <td className="num">
-                          {formatarDecimal(c.mean_intensity ?? 0, idioma, 1)}
-                        </td>
-                        <td className="num">
-                          {formatarPercentual(c.cobertura_verde_pct, idioma, 1)}
-                        </td>
-                        <td className="num">
-                          {formatarPercentual(c.cobertura_amarela_pct, idioma, 1)}
-                        </td>
+                        {sel.relatorio["Tipo de Análise"] === "citoplasma" ? (
+                          <>
+                            <td className="num">
+                              {formatarInteiro(
+                                c.area_total_px ?? (c.area_px + (c.area_citoplasma_px ?? 0)),
+                                idioma
+                              )}
+                            </td>
+                            <td className="num">
+                              {formatarDecimal(c.mean_intensity ?? 0, idioma, 1)}
+                            </td>
+                            <td className="num">
+                              {c.razao_nc !== null && c.razao_nc !== undefined
+                                ? formatarDecimal(c.razao_nc, idioma, 2)
+                                : "—"}
+                            </td>
+                          </>
+                        ) : (
+                          <>
+                            <td className="num">
+                              {formatarDecimal(c.mean_intensity ?? 0, idioma, 1)}
+                            </td>
+                            <td className="num">
+                              {formatarPercentual(c.cobertura_verde_pct, idioma, 1)}
+                            </td>
+                            <td className="num">
+                              {formatarPercentual(c.cobertura_amarela_pct, idioma, 1)}
+                            </td>
+                          </>
+                        )}
                       </tr>
                     ))}
                   </tbody>

@@ -75,6 +75,33 @@ export default function PainelCalibracao({
       <section className="panel-block">
         <h2 className="panel-title">{t.sec_calc}</h2>
 
+        <div className="field">
+          <span className="field-label">{t.analysis_mode_label}</span>
+          <div className="segmented-control" role="group" aria-label={t.analysis_mode_label}>
+            <button
+              type="button"
+              className={`segmented-btn ${parametros.tipo_analise !== "citoplasma" ? "active" : ""}`}
+              disabled={desabilitado}
+              onClick={() => set({ tipo_analise: "viabilidade" })}
+            >
+              {t.mode_viability}
+            </button>
+            <button
+              type="button"
+              className={`segmented-btn ${parametros.tipo_analise === "citoplasma" ? "active" : ""}`}
+              disabled={desabilitado}
+              onClick={() => set({ tipo_analise: "citoplasma" })}
+            >
+              {t.mode_cytoplasm}
+            </button>
+          </div>
+          <span className="field-help">
+            {parametros.tipo_analise === "citoplasma"
+              ? t.mode_cytoplasm_help
+              : t.mode_viability_help}
+          </span>
+        </div>
+
         <label className="field">
           <span className="field-label">
             {idioma === "en"
@@ -134,67 +161,72 @@ export default function PainelCalibracao({
           </span>
         </label>
 
-        <label className="field">
-          <span className="field-label">{t.calc_formula}</span>
-          <select
-            className="select select-formula"
-            value={parametros.formula_viabilidade}
-            disabled={desabilitado}
-            title={
-              parametros.formula_viabilidade.includes("Rigoroso")
-                ? t.formula_strict
-                : t.formula_bio
-            }
-            onChange={(e) => set({ formula_viabilidade: e.target.value })}
-          >
-            <option value="Padrão Biológico (Vivas / (Vivas + Mortas))">{t.formula_bio}</option>
-            <option value="Rigoroso (Vivas / Total Azul)">{t.formula_strict}</option>
-          </select>
-          <span className="field-help">{t.calc_help}</span>
-        </label>
+        {parametros.tipo_analise !== "citoplasma" ? (
+          <>
+            <label className="field">
+              <span className="field-label">{t.calc_formula}</span>
+              <select
+                className="select select-formula"
+                value={parametros.formula_viabilidade}
+                disabled={desabilitado}
+                title={
+                  parametros.formula_viabilidade.includes("Rigoroso")
+                    ? t.formula_strict
+                    : t.formula_bio
+                }
+                onChange={(e) => set({ formula_viabilidade: e.target.value })}
+              >
+                <option value="Padrão Biológico (Vivas / (Vivas + Mortas))">{t.formula_bio}</option>
+                <option value="Rigoroso (Vivas / Total Azul)">{t.formula_strict}</option>
+              </select>
+              <span className="field-help">{t.calc_help}</span>
+            </label>
 
-        <label className="field field-row">
-          <span className="field-label">
-            {idioma === "en"
-              ? "Cytoplasm segmentation (Voronoi ring)"
-              : idioma === "es"
-              ? "Segmentar citoplasma (anillo Voronoi)"
-              : "Segmentar citoplasma (anel Voronoi)"}
-          </span>
-          <span className="switch">
-            <input
-              type="checkbox"
-              checked={parametros.segmentar_citoplasma ?? true}
-              disabled={desabilitado}
-              onChange={(e) => set({ segmentar_citoplasma: e.target.checked })}
-            />
-            <span className="switch-track"></span>
-          </span>
-        </label>
+            <label className="field field-row">
+              <span className="field-label">
+                {idioma === "en"
+                  ? "Cytoplasm segmentation (Voronoi ring)"
+                  : idioma === "es"
+                  ? "Segmentar citoplasma (anillo Voronoi)"
+                  : "Segmentar citoplasma (anel Voronoi)"}
+              </span>
+              <span className="switch">
+                <input
+                  type="checkbox"
+                  checked={parametros.segmentar_citoplasma ?? true}
+                  disabled={desabilitado}
+                  onChange={(e) => set({ segmentar_citoplasma: e.target.checked })}
+                />
+                <span className="switch-track"></span>
+              </span>
+            </label>
 
-        {(parametros.segmentar_citoplasma ?? true) && (
+            {(parametros.segmentar_citoplasma ?? true) && (
+              <Slider
+                label={t.cyto_expansion_label}
+                value={parametros.raio_citoplasma ?? 8}
+                min={2}
+                max={25}
+                step={1}
+                corClasse="slider-green"
+                disabled={desabilitado}
+                onChange={(v) => set({ raio_citoplasma: v })}
+                help={t.cyto_expansion_help}
+                idioma={idioma}
+              />
+            )}
+          </>
+        ) : (
           <Slider
-            label={
-              idioma === "en"
-                ? "Cytoplasm expansion (px)"
-                : idioma === "es"
-                ? "Expansión del citoplasma (px)"
-                : "Expansão do citoplasma (px)"
-            }
-            value={parametros.raio_citoplasma ?? 8}
+            label={t.cyto_expansion_label}
+            value={parametros.raio_citoplasma ?? 25}
             min={2}
-            max={25}
+            max={60}
             step={1}
             corClasse="slider-green"
             disabled={desabilitado}
             onChange={(v) => set({ raio_citoplasma: v })}
-            help={
-              idioma === "en"
-                ? "Expands cytoplasmic boundary from each nucleus without overlapping neighbors."
-                : idioma === "es"
-                ? "Expande el borde citoplasmático desde cada núcleo sin superponerse a células vecinas."
-                : "Expande a borda citoplasmática a partir de cada núcleo (azul) sem invadir células vizinhas."
-            }
+            help={t.cyto_expansion_help}
             idioma={idioma}
           />
         )}
@@ -248,7 +280,7 @@ export default function PainelCalibracao({
               idioma={idioma}
             />
             <Slider
-              label={t.slider_green}
+              label={parametros.tipo_analise === "citoplasma" ? t.slider_cyto_green : t.slider_green}
               value={parametros.bias_verde}
               min={-30}
               max={30}
@@ -258,17 +290,19 @@ export default function PainelCalibracao({
               onChange={(v) => set({ bias_verde: v })}
               idioma={idioma}
             />
-            <Slider
-              label={t.slider_yellow}
-              value={parametros.bias_amarelo}
-              min={-30}
-              max={30}
-              step={1}
-              corClasse="slider-yellow"
-              disabled={desabilitado}
-              onChange={(v) => set({ bias_amarelo: v })}
-              idioma={idioma}
-            />
+            {parametros.tipo_analise !== "citoplasma" && (
+              <Slider
+                label={t.slider_yellow}
+                value={parametros.bias_amarelo}
+                min={-30}
+                max={30}
+                step={1}
+                corClasse="slider-yellow"
+                disabled={desabilitado}
+                onChange={(v) => set({ bias_amarelo: v })}
+                idioma={idioma}
+              />
+            )}
             <Slider
               label={t.slider_circ}
               value={parametros.min_circularidade}
@@ -328,7 +362,7 @@ export default function PainelCalibracao({
                   area_maxima: null,
                   motor_segmentacao: "watershed",
                   segmentar_citoplasma: true,
-                  raio_citoplasma: 8,
+                  raio_citoplasma: parametros.tipo_analise === "citoplasma" ? 25 : 8,
                 })
               }
             >
