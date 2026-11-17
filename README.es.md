@@ -114,8 +114,8 @@ La plataforma cuenta con soporte trilingüe completo en su interfaz gráfica, in
 No es necesario instalar Python ni compilar código para utilizar CytoCount:
 
 1. Descarga el archivo de instalación:
-   - **Instalador NSIS**: `CytoCount_1.3.1_x64-setup.exe`
-   - **Instalador MSI Empresarial**: `CytoCount_1.3.1_x64_en-US.msi`
+   - **Instalador NSIS**: `CytoCount_1.3.2_x64-setup.exe`
+   - **Instalador MSI Empresarial**: `CytoCount_1.3.2_x64_en-US.msi`
    - **Ejecutable Standalone**: `viacell.exe` (ejecución directa sin instalación)
 2. Inicia **CytoCount**.
 3. Arrastra y suelta imágenes microscópicas (`.png`, `.jpg`, `.bmp`, `.tif`, `.tiff`) o carpetas completas para iniciar el procesamiento automatizado.
@@ -261,7 +261,7 @@ Si utilizas CytoCount en artículos científicos, tesis o congresos, por favor c
 
 ```
 SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell
-Viability Counter and Morphological Segmenter. Versão 1.3.1. Campinas, 2026.
+Viability Counter and Morphological Segmenter. Versão 1.3.2. Campinas, 2026.
 DOI: 10.5281/zenodo.24224692. Disponível em: https://github.com/gcandid0/CytoCount.
 ```
 </details>
@@ -271,7 +271,7 @@ DOI: 10.5281/zenodo.24224692. Disponível em: https://github.com/gcandid0/CytoCo
 
 ```
 Santos, G. C. M. (2026). CytoCount: Automated fluorescence cell viability
-counter and morphological segmenter (Versión 1.3.1) [Software de computación].
+counter and morphological segmenter (Versión 1.3.2) [Software de computación].
 Campinas, SP, Brasil. https://doi.org/10.5281/zenodo.24224692
 ```
 </details>
@@ -281,7 +281,7 @@ Campinas, SP, Brasil. https://doi.org/10.5281/zenodo.24224692
 
 ```
 Santos GCM. CytoCount: automated fluorescence cell viability counter and
-morphological segmenter [Internet]. Versión 1.3.1. Campinas; 2026. Disponible en:
+morphological segmenter [Internet]. Versión 1.3.2. Campinas; 2026. Disponible en:
 https://doi.org/10.5281/zenodo.24224692
 ```
 </details>
@@ -291,7 +291,7 @@ https://doi.org/10.5281/zenodo.24224692
 
 ```
 G. C. M. Santos, "CytoCount: Automated Fluorescence Cell Viability Counter and
-Morphological Segmenter," Versión 1.3.1, Campinas, Brasil, 2026. doi:
+Morphological Segmenter," Versión 1.3.2, Campinas, Brasil, 2026. doi:
 10.5281/zenodo.24224692. [En línea]. Disponible: https://github.com/gcandid0/CytoCount
 ```
 </details>
@@ -303,7 +303,7 @@ Morphological Segmenter," Versión 1.3.1, Campinas, Brasil, 2026. doi:
 @software{santos_cytocount_2026,
   author       = {Santos, Gabriel Candido Messias dos},
   title        = {{CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter}},
-  version      = {1.3.1},
+  version      = {1.3.2},
   year         = {2026},
   address      = {Campinas, SP, Brasil},
   doi          = {10.5281/zenodo.24224692},
@@ -319,7 +319,7 @@ Morphological Segmenter," Versión 1.3.1, Campinas, Brasil, 2026. doi:
 TY  - COMP
 AU  - Santos, Gabriel Candido Messias dos
 TI  - CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter
-ET  - 1.3.1
+ET  - 1.3.2
 PY  - 2026
 CY  - Campinas, SP, Brasil
 DO  - 10.5281/zenodo.24224692

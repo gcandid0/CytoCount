@@ -15,10 +15,10 @@ export default function ModalTutorial({
     <Modal
       titulo={
         idioma === "en"
-          ? "Quick Guide & Scientific Methodology — CytoCount v1.3.1"
+          ? "Quick Guide & Scientific Methodology — CytoCount v1.3.2"
           : idioma === "es"
-          ? "Guía Rápida y Metodología Científica — CytoCount v1.3.1"
-          : "Guia Rápido & Metodologia Científica — CytoCount v1.3.1"
+          ? "Guía Rápida y Metodología Científica — CytoCount v1.3.2"
+          : "Guia Rápido & Metodologia Científica — CytoCount v1.3.2"
       }
       subtitulo="Segmentação Watershed · Limiarização de Otsu · Intervalo Binomial de Wilson 95%"
       icone={<BookOpenIcon size={20} />}

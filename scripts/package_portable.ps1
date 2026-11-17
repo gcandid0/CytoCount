@@ -12,7 +12,7 @@ if (Test-Path "src-tauri\binaries\viacell-backend-x86_64-pc-windows-msvc.exe") {
     Copy-Item "src-tauri\target\release\viacell-backend.exe" -Destination $tempFolder -Force
 }
 
-$zipPath = Join-Path $portDir "CytoCount_1.3.1_x64_Portable.zip"
+$zipPath = Join-Path $portDir "CytoCount_1.3.2_x64_Portable.zip"
 if (Test-Path $zipPath) { Remove-Item -Force $zipPath }
 Compress-Archive -Path "$tempFolder\*" -DestinationPath $zipPath -CompressionLevel Optimal
 Remove-Item -Recurse -Force $tempFolder

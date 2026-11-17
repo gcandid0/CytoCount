@@ -1,5 +1,5 @@
 """
-main.py — API local do CytoCount v1.3.1.
+main.py — API local do CytoCount v1.3.2.
 
 Autor: Gabriel Candido Messias dos Santos
 """

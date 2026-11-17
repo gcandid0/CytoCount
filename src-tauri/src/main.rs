@@ -1,4 +1,4 @@
-// Ponto de entrada do lado nativo do CytoCount v1.3.1.
+// Ponto de entrada do lado nativo do CytoCount v1.3.2.
 //
 // Responsabilidades:
 // 1. Gerenciar o ciclo de vida do backend Python (sidecar viacell-backend)
@@ -615,7 +615,7 @@ fn main() {
                     &recent_logs,
                     "[main]",
                     &format!(
-                        "Iniciando CytoCount v1.3.1. Log em: {} | Config em: {}",
+                        "Iniciando CytoCount v1.3.2. Log em: {} | Config em: {}",
                         log_file_path.display(),
                         config_file_path.display()
                     ),
