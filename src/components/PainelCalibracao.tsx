@@ -1,4 +1,4 @@
-import { Parametros } from "../lib/api";
+import { MotorSegmentacao, Parametros } from "../lib/api";
 import { Idioma, TEXTOS } from "../lib/i18n";
 import { formatarDecimal } from "../lib/format";
 import { ChevronDownIcon, RefreshCwIcon, SlidersIcon } from "./Icons";
@@ -74,6 +74,66 @@ export default function PainelCalibracao({
     <>
       <section className="panel-block">
         <h2 className="panel-title">{t.sec_calc}</h2>
+
+        <label className="field">
+          <span className="field-label">
+            {idioma === "en"
+              ? "Segmentation Engine"
+              : idioma === "es"
+              ? "Motor de segmentación"
+              : "Motor de segmentação"}
+          </span>
+          <select
+            className="select"
+            value={parametros.motor_segmentacao ?? "watershed"}
+            disabled={desabilitado}
+            onChange={(e) =>
+              set({ motor_segmentacao: e.target.value as MotorSegmentacao })
+            }
+          >
+            <option value="watershed">
+              {idioma === "en"
+                ? "Classical Watershed (Fast · Default)"
+                : idioma === "es"
+                ? "Watershed Clásico (Rápido · Estándar)"
+                : "Watershed Clássico (Rápido · Padrão)"}
+            </option>
+            <option value="stardist">
+              {idioma === "en"
+                ? "StarDist 2D (Star-Convex Polygons · NMS)"
+                : idioma === "es"
+                ? "StarDist 2D (Polígonos Estrellados · NMS)"
+                : "StarDist 2D (Polígonos Estrelados · NMS)"}
+            </option>
+            <option value="cellpose">
+              {idioma === "en"
+                ? "Cellpose 2D (Gradient Vector Flow · CLAHE)"
+                : idioma === "es"
+                ? "Cellpose 2D (Flujo Vectorial · CLAHE)"
+                : "Cellpose 2D (Fluxo Vetorial · CLAHE)"}
+            </option>
+          </select>
+          <span className="field-help">
+            {(parametros.motor_segmentacao ?? "watershed") === "stardist"
+              ? idioma === "en"
+                ? "StarDist 2D: 32-ray star-convex polygon projection + Non-Maximum Suppression (NMS) for round/touching nuclei."
+                : idioma === "es"
+                ? "StarDist 2D: polígonos estrellados de 32 rayos + supresión no-máxima (NMS) para núcleos densos."
+                : "StarDist 2D: projeção de polígonos estrelados de 32 raios + supressão não-máxima (NMS) para núcleos redondos/densos."
+              : (parametros.motor_segmentacao ?? "watershed") === "cellpose"
+              ? idioma === "en"
+                ? "Cellpose 2D: adaptive CLAHE + spatial gradient flow tracking (Euler integration) for confluent or dim cells."
+                : idioma === "es"
+                ? "Cellpose 2D: ecualización CLAHE + flujo de gradiente espacial (Euler) para células confluentes o tenues."
+                : "Cellpose 2D: equalização CLAHE + rastreamento de fluxo vetorial de gradiente (Euler) para células confluentes ou de sinal tênue."
+              : idioma === "en"
+              ? "Classical Euclidean distance transform and watershed basin separation."
+              : idioma === "es"
+              ? "Transformada de distancia euclidiana clásica y separación por cuencas hidrográficas."
+              : "Transformada de distância euclidiana clássica e separação por bacias hidrográficas."}
+          </span>
+        </label>
+
         <label className="field">
           <span className="field-label">{t.calc_formula}</span>
           <select
@@ -220,6 +280,7 @@ export default function PainelCalibracao({
                   aplicar_bilateral: true,
                   min_circularidade: 0.15,
                   area_maxima: null,
+                  motor_segmentacao: "watershed",
                 })
               }
             >

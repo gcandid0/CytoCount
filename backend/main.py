@@ -206,16 +206,25 @@ def health():
 
 
 @api_router.post("/sample-demo")
-async def carregar_amostra_demo(request: Request, idioma: Optional[str] = Form(None)):
+async def carregar_amostra_demo(
+    request: Request,
+    idioma: Optional[str] = Form(None),
+    motor_segmentacao: Optional[str] = Form(None),
+):
     """Carrega a imagem de fluorescência de exemplo embutida no pacote e a processa."""
-    if not idioma:
+    if not idioma or not motor_segmentacao:
         try:
             body = await request.json()
-            idioma = body.get("idioma", "pt")
+            if not idioma:
+                idioma = body.get("idioma", "pt")
+            if not motor_segmentacao:
+                motor_segmentacao = body.get("motor_segmentacao", "watershed")
         except Exception:
-            idioma = "pt"
+            pass
     if not idioma:
         idioma = "pt"
+    if not motor_segmentacao:
+        motor_segmentacao = "watershed"
 
     async with _PROCESS_LOCK:
         file_bytes = core.gerar_amostra_exemplo()
@@ -229,6 +238,7 @@ async def carregar_amostra_demo(request: Request, idioma: Optional[str] = Form(N
             "min_circularidade": 0.15,
             "area_maxima": None,
             "formula_viabilidade": "Padrão Biológico (Vivas / (Vivas + Mortas))",
+            "motor_segmentacao": motor_segmentacao,
             "roi": None,
             "idioma": idioma,
         }
@@ -280,6 +290,7 @@ async def process_imagem(
     min_circularidade: float = Form(0.15),
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
+    motor_segmentacao: str = Form("watershed"),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
 ):
@@ -302,6 +313,7 @@ async def process_imagem(
         "min_circularidade": min_circularidade,
         "area_maxima": area_maxima,
         "formula_viabilidade": formula_viabilidade,
+        "motor_segmentacao": motor_segmentacao,
         "roi": roi,
         "idioma": idioma,
     }
@@ -358,6 +370,7 @@ async def reprocessar_amostra(
     min_circularidade: float = Form(0.15),
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
+    motor_segmentacao: str = Form("watershed"),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
 ):
@@ -401,6 +414,7 @@ async def reprocessar_amostra(
         "min_circularidade": min_circularidade,
         "area_maxima": area_maxima,
         "formula_viabilidade": formula_viabilidade,
+        "motor_segmentacao": motor_segmentacao,
         "roi": roi,
         "idioma": idioma,
     }
@@ -482,6 +496,7 @@ async def atualizar_celulas_manual(
         roi_aplicado=roi_aplicado,
         eh_jpeg=eh_jpeg,
         manual_edits=manual_edits,
+        motor_segmentacao=item.get("parametros", {}).get("motor_segmentacao", "watershed"),
     )
 
     orig_path = item.get("orig_path")
@@ -530,6 +545,7 @@ async def mesclar_canais(
     min_circularidade: float = Form(0.15),
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
+    motor_segmentacao: str = Form("watershed"),
     idioma: str = Form("pt"),
 ):
     """
@@ -597,6 +613,7 @@ async def mesclar_canais(
             "min_circularidade": min_circularidade,
             "area_maxima": area_maxima,
             "formula_viabilidade": formula_viabilidade,
+            "motor_segmentacao": motor_segmentacao,
             "roi": None,
             "idioma": idioma,
             "canais_separados_puros": canais_puros,
