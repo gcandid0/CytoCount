@@ -478,7 +478,14 @@ def desenhar_celulas_de_tabela(
         classe = cel.get("classificacao", "indeterminada")
         cor = cores.get(classe, cores["indeterminada"])
         pts = cel.get("contorno_pts")
-        if pts and isinstance(pts, list) and len(pts) >= 3:
+        pts_cito = cel.get("contorno_citoplasma_pts")
+        if pts_cito and isinstance(pts_cito, list) and len(pts_cito) >= 3:
+            if pts and isinstance(pts, list) and len(pts) >= 3:
+                arr_nuc = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
+                cv2.drawContours(saida, [arr_nuc], -1, cor_nucleo_base, 1)
+            arr_cito = np.array(pts_cito, dtype=np.int32).reshape((-1, 1, 2))
+            cv2.drawContours(saida, [arr_cito], -1, cor, 1)
+        elif pts and isinstance(pts, list) and len(pts) >= 3:
             arr_pts = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
             cv2.drawContours(saida, [arr_pts], -1, cor_nucleo_base, 1)
             cv2.drawContours(saida, [arr_pts], -1, cor, 1)
@@ -864,6 +871,43 @@ def segmentar_canal(canal_rgb_uint8, parametros, auto=True):
     return n_objetos, labels, mask, limiar_usado, params_usados
 
 
+def segmentar_citoplasma_voronoi(
+    labels_azul: np.ndarray,
+    mask_verde: np.ndarray,
+    mask_amarelo: np.ndarray,
+    raio_expansao: int = 8,
+) -> np.ndarray:
+    """
+    Segmentação Secundária de Citoplasma (estilo CellProfiler IdentifySecondaryObjects — Distance-B / Voronoi):
+    Usa os núcleos segmentados (`labels_azul`) como sementes primárias e expande cada célula até a borda
+    do sinal citoplasmático (FITC/Verde ou PI/Amarelo) e um halo perinuclear controlado por `raio_expansao`,
+    particionando por Watershed Geodésico/Voronoi para que células vizinhas NUNCA se sobreponham.
+    """
+    if labels_azul.max() == 0:
+        return np.zeros_like(labels_azul, dtype=np.int32)
+
+    r_exp = max(2, min(35, int(raio_expansao)))
+    # Distância euclidiana externa a partir da borda de cada núcleo
+    fundo_nuclear = (labels_azul == 0).astype(np.uint8)
+    dist_ext = cv2.distanceTransform(fundo_nuclear, cv2.DIST_L2, 5)
+
+    # Sinais de fluorescência citoplasmática / membranar
+    sinal_fluo = (mask_verde > 127) | (mask_amarelo > 127)
+
+    # Halo basal perinuclear (garante anel citoplasmático mínimo) + expansão guiada por fluorescência até r_exp * 1.4
+    r_halo_min = max(2.0, float(r_exp) * 0.55)
+    r_fluo_max = float(r_exp) * 1.45
+    dominio_celular = (
+        (labels_azul > 0)
+        | (dist_ext <= r_halo_min)
+        | ((dist_ext <= r_fluo_max) & sinal_fluo)
+    )
+
+    # Particionamento Voronoi restrito ao domínio celular a partir das sementes nucleares
+    labels_celula = watershed(dist_ext, markers=labels_azul, mask=dominio_celular)
+    return labels_celula.astype(np.int32)
+
+
 def classificar_nucleos(
     labels_azul: np.ndarray,
     mask_verde: np.ndarray,
@@ -871,10 +915,13 @@ def classificar_nucleos(
     img_intensidade: Optional[np.ndarray] = None,
     raio_dilatacao: int = 4,
     min_pixels_regiao: int = 6,
+    labels_citoplasma: Optional[np.ndarray] = None,
 ) -> dict[str, Any]:
     """
     Classifica CADA núcleo segmentado em `labels_azul` sem descartar nenhum ID,
     garantindo que detectados == vivas + mortas + indeterminadas.
+    Quando `labels_citoplasma` é fornecido, utiliza a máscara secundária Voronoi de citoplasma
+    para quantificar o sinal fluorescente sem invadir células vizinhas e extrai o contorno citoplasmático.
     """
     kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (raio_dilatacao * 2 + 1,) * 2)
 
@@ -897,15 +944,21 @@ def classificar_nucleos(
     labels_indeterminadas = np.zeros_like(labels_azul)
     tabela_celulas = []
 
-    slices = ndi.find_objects(labels_azul)
+    usar_cito = labels_citoplasma is not None and labels_citoplasma.shape == labels_azul.shape
+    slices_base = ndi.find_objects(labels_citoplasma if usar_cito else labels_azul)
+    slices_nuc = ndi.find_objects(labels_azul)
     H, W = labels_azul.shape
-    pad = raio_dilatacao + 2
+    pad = max(raio_dilatacao + 3, 6)
 
     mask_verde_bin = mask_verde > 127
     mask_amarela_bin = mask_amarelo > 127
 
     for label_id in ids:
-        sl = slices[label_id - 1] if (label_id - 1 < len(slices)) else None
+        sl = (
+            slices_base[label_id - 1]
+            if (label_id - 1 < len(slices_base) and slices_base[label_id - 1] is not None)
+            else (slices_nuc[label_id - 1] if (label_id - 1 < len(slices_nuc)) else None)
+        )
         if sl is None:
             continue
 
@@ -921,14 +974,23 @@ def classificar_nucleos(
         mask_nucleo = sub_labels == label_id
         sub_obj = np.uint8(mask_nucleo) * 255
         area_nucleo = int(mask_nucleo.sum())
-        sub_regiao = cv2.dilate(sub_obj, kernel) > 0
+
+        if usar_cito and labels_citoplasma is not None:
+            sub_cito = labels_citoplasma[y0:y1, x0:x1] == label_id
+            # Garante que o núcleo sempre faz parte do domínio da célula
+            sub_regiao = sub_cito | mask_nucleo
+        else:
+            sub_regiao = cv2.dilate(sub_obj, kernel) > 0
+
         area_regiao = int(sub_regiao.sum())
+        area_citoplasma = max(0, area_regiao - area_nucleo)
+        mask_desenho = sub_regiao if usar_cito else mask_nucleo
 
         if area_regiao < min_pixels_regiao or area_regiao == 0:
             # Nunca descarta núcleo: classifica como indeterminada para manter consistência exata
             classe = "indeterminada"
             n_indeterminadas += 1
-            labels_indeterminadas[y0:y1, x0:x1][mask_nucleo] = label_id
+            labels_indeterminadas[y0:y1, x0:x1][mask_desenho] = label_id
             frac_verde = 0.0
             frac_amarela = 0.0
         else:
@@ -943,15 +1005,15 @@ def classificar_nucleos(
             if pos_amarelo:
                 classe = "morta"
                 n_mortas += 1
-                labels_mortas[y0:y1, x0:x1][mask_nucleo] = label_id
+                labels_mortas[y0:y1, x0:x1][mask_desenho] = label_id
             elif pos_verde:
                 classe = "viavel"
                 n_viaveis += 1
-                labels_viaveis[y0:y1, x0:x1][mask_nucleo] = label_id
+                labels_viaveis[y0:y1, x0:x1][mask_desenho] = label_id
             else:
                 classe = "indeterminada"
                 n_indeterminadas += 1
-                labels_indeterminadas[y0:y1, x0:x1][mask_nucleo] = label_id
+                labels_indeterminadas[y0:y1, x0:x1][mask_desenho] = label_id
 
         M = cv2.moments(sub_obj)
         if M["m00"] > 0:
@@ -964,11 +1026,11 @@ def classificar_nucleos(
         # Intensidade média para compatibilidade com ImageJ Results Table (Mean)
         if img_intensidade is not None:
             sub_int = img_intensidade[y0:y1, x0:x1]
-            mean_val = round(float(sub_int[mask_nucleo].mean()), 2) if area_nucleo > 0 else 0.0
+            mean_val = round(float(sub_int[sub_regiao].mean()), 2) if area_regiao > 0 else 0.0
         else:
             mean_val = round(float((frac_verde + frac_amarela) * 127.5), 2)
 
-        # Contorno simplificado para macro do Fiji (.ijm) e redesenho rápido após edição manual
+        # Contorno nuclear simplificado para macro do Fiji (.ijm) e redesenho rápido
         contornos, _ = cv2.findContours(sub_obj, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
         contorno_pts = []
         if contornos:
@@ -977,11 +1039,23 @@ def classificar_nucleos(
             approx = cv2.approxPolyDP(c_maior, eps, True)
             contorno_pts = [[int(pt[0][0] + x0), int(pt[0][1] + y0)] for pt in approx[:20]]
 
+        # Contorno citoplasmático (quando segmentação de citoplasma está ativa)
+        contorno_cito_pts = []
+        if usar_cito:
+            sub_cito_u8 = np.uint8(sub_regiao) * 255
+            contornos_c, _ = cv2.findContours(sub_cito_u8, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+            if contornos_c:
+                c_cito_maior = max(contornos_c, key=cv2.contourArea)
+                eps_c = max(0.8, 0.02 * cv2.arcLength(c_cito_maior, True))
+                approx_c = cv2.approxPolyDP(c_cito_maior, eps_c, True)
+                contorno_cito_pts = [[int(pt[0][0] + x0), int(pt[0][1] + y0)] for pt in approx_c[:24]]
+
         raio_eq = round(float(np.sqrt(max(1, area_nucleo) / np.pi)), 1)
 
-        tabela_celulas.append({
+        item_celula: dict[str, Any] = {
             "celula_id": int(label_id),
             "area_px": area_nucleo if area_nucleo > 0 else area_regiao,
+            "area_citoplasma_px": area_citoplasma,
             "area_regiao_px": area_regiao,
             "centro_x": cx,
             "centro_y": cy,
@@ -991,7 +1065,10 @@ def classificar_nucleos(
             "cobertura_amarela_pct": round(frac_amarela * 100, 1),
             "classificacao": classe,
             "contorno_pts": contorno_pts,
-        })
+        }
+        if contorno_cito_pts:
+            item_celula["contorno_citoplasma_pts"] = contorno_cito_pts
+        tabela_celulas.append(item_celula)
 
     return {
         "n_viaveis": n_viaveis,
@@ -1359,14 +1436,32 @@ def processar_canais_em_memoria(
     mask_amarelo, thr_amarelo, _ = limiar_otsu_com_ajuste(corrigido_amarelo, parametros.get("bias_amarelo", 0))
     mask_amarelo = limpar_mascara(mask_amarelo)
 
-    raio_dilatacao = max(2, int(round(np.sqrt(p_azul.get("area_minima", 15) / np.pi) * 0.8)))
+    raio_auto = max(2, int(round(np.sqrt(p_azul.get("area_minima", 15) / np.pi) * 0.8)))
+    segmentar_cito = bool(parametros.get("segmentar_citoplasma", True))
+    raio_cito_param = parametros.get("raio_citoplasma")
+    raio_dilatacao = (
+        max(2, int(raio_cito_param))
+        if (raio_cito_param is not None and int(raio_cito_param) > 0)
+        else max(6, raio_auto * 2)
+    )
+
+    labels_cito = None
+    if segmentar_cito:
+        labels_cito = segmentar_citoplasma_voronoi(
+            lab_azul,
+            mask_verde,
+            mask_amarelo,
+            raio_expansao=raio_dilatacao,
+        )
+
     img_gray = cv2.cvtColor(original_rgb, cv2.COLOR_RGB2GRAY)
     classificacao = classificar_nucleos(
         lab_azul,
         mask_verde.astype(np.float32),
         mask_amarelo.astype(np.float32),
         img_intensidade=img_gray,
-        raio_dilatacao=raio_dilatacao,
+        raio_dilatacao=raio_dilatacao if segmentar_cito else raio_auto,
+        labels_citoplasma=labels_cito,
     )
 
     tabela_celulas = classificacao["tabela_celulas"]

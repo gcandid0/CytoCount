@@ -239,6 +239,8 @@ async def carregar_amostra_demo(
             "area_maxima": None,
             "formula_viabilidade": "Padrão Biológico (Vivas / (Vivas + Mortas))",
             "motor_segmentacao": motor_segmentacao,
+            "segmentar_citoplasma": True,
+            "raio_citoplasma": 8,
             "roi": None,
             "idioma": idioma,
         }
@@ -291,6 +293,8 @@ async def process_imagem(
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
     motor_segmentacao: str = Form("watershed"),
+    segmentar_citoplasma: bool = Form(True),
+    raio_citoplasma: int = Form(8),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
 ):
@@ -314,6 +318,8 @@ async def process_imagem(
         "area_maxima": area_maxima,
         "formula_viabilidade": formula_viabilidade,
         "motor_segmentacao": motor_segmentacao,
+        "segmentar_citoplasma": segmentar_citoplasma,
+        "raio_citoplasma": raio_citoplasma,
         "roi": roi,
         "idioma": idioma,
     }
@@ -371,6 +377,8 @@ async def reprocessar_amostra(
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
     motor_segmentacao: str = Form("watershed"),
+    segmentar_citoplasma: bool = Form(True),
+    raio_citoplasma: int = Form(8),
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
 ):
@@ -415,6 +423,8 @@ async def reprocessar_amostra(
         "area_maxima": area_maxima,
         "formula_viabilidade": formula_viabilidade,
         "motor_segmentacao": motor_segmentacao,
+        "segmentar_citoplasma": segmentar_citoplasma,
+        "raio_citoplasma": raio_citoplasma,
         "roi": roi,
         "idioma": idioma,
     }
@@ -546,6 +556,8 @@ async def mesclar_canais(
     area_maxima: Optional[int] = Form(None),
     formula_viabilidade: str = Form("Padrão Biológico (Vivas / (Vivas + Mortas))"),
     motor_segmentacao: str = Form("watershed"),
+    segmentar_citoplasma: bool = Form(True),
+    raio_citoplasma: int = Form(8),
     idioma: str = Form("pt"),
 ):
     """
@@ -614,6 +626,8 @@ async def mesclar_canais(
             "area_maxima": area_maxima,
             "formula_viabilidade": formula_viabilidade,
             "motor_segmentacao": motor_segmentacao,
+            "segmentar_citoplasma": segmentar_citoplasma,
+            "raio_citoplasma": raio_citoplasma,
             "roi": None,
             "idioma": idioma,
             "canais_separados_puros": canais_puros,

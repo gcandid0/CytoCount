@@ -75,6 +75,8 @@ const PARAMS_INICIAIS: Parametros = {
   area_maxima: null,
   formula_viabilidade: "Padrão Biológico (Vivas / (Vivas + Mortas))",
   motor_segmentacao: "watershed",
+  segmentar_citoplasma: true,
+  raio_citoplasma: 8,
   roi: null,
 };
 
@@ -317,6 +319,8 @@ export default function App() {
     parametros.area_maxima,
     parametros.formula_viabilidade,
     parametros.motor_segmentacao,
+    parametros.segmentar_citoplasma,
+    parametros.raio_citoplasma,
   ]);
 
   const handleAplicarROI = useCallback(

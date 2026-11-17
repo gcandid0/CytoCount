@@ -154,6 +154,52 @@ export default function PainelCalibracao({
         </label>
 
         <label className="field field-row">
+          <span className="field-label">
+            {idioma === "en"
+              ? "Cytoplasm segmentation (Voronoi ring)"
+              : idioma === "es"
+              ? "Segmentar citoplasma (anillo Voronoi)"
+              : "Segmentar citoplasma (anel Voronoi)"}
+          </span>
+          <span className="switch">
+            <input
+              type="checkbox"
+              checked={parametros.segmentar_citoplasma ?? true}
+              disabled={desabilitado}
+              onChange={(e) => set({ segmentar_citoplasma: e.target.checked })}
+            />
+            <span className="switch-track"></span>
+          </span>
+        </label>
+
+        {(parametros.segmentar_citoplasma ?? true) && (
+          <Slider
+            label={
+              idioma === "en"
+                ? "Cytoplasm expansion (px)"
+                : idioma === "es"
+                ? "Expansión del citoplasma (px)"
+                : "Expansão do citoplasma (px)"
+            }
+            value={parametros.raio_citoplasma ?? 8}
+            min={2}
+            max={25}
+            step={1}
+            corClasse="slider-green"
+            disabled={desabilitado}
+            onChange={(v) => set({ raio_citoplasma: v })}
+            help={
+              idioma === "en"
+                ? "Expands cytoplasmic boundary from each nucleus without overlapping neighbors."
+                : idioma === "es"
+                ? "Expande el borde citoplasmático desde cada núcleo sin superponerse a células vecinas."
+                : "Expande a borda citoplasmática a partir de cada núcleo (azul) sem invadir células vizinhas."
+            }
+            idioma={idioma}
+          />
+        )}
+
+        <label className="field field-row">
           <span className="field-label">{t.bilateral_label}</span>
           <span className="switch">
             <input
@@ -281,6 +327,8 @@ export default function PainelCalibracao({
                   min_circularidade: 0.15,
                   area_maxima: null,
                   motor_segmentacao: "watershed",
+                  segmentar_citoplasma: true,
+                  raio_citoplasma: 8,
                 })
               }
             >

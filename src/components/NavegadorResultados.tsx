@@ -362,11 +362,12 @@ export default function NavegadorResultados({
   // Exportação ImageJ CSV (Results Table) com diálogo nativo "Salvar como"
   const exportarImageJCSV = async () => {
     try {
-      const header = " ,X,Y,Area,Mean,Class,Green_Pct,Yellow_Pct\n";
+      const header = " ,X,Y,Area,Cytoplasm_Area,Mean,Class,Green_Pct,Yellow_Pct\n";
       const rows = celulas
         .map((c, idx) => {
           const mean = c.mean_intensity ?? Number(((c.cobertura_verde_pct + c.cobertura_amarela_pct) * 1.27).toFixed(1));
-          return `${idx + 1},${c.centro_x},${c.centro_y},${c.area_px},${mean},${c.classificacao},${c.cobertura_verde_pct},${c.cobertura_amarela_pct}`;
+          const citoArea = c.area_citoplasma_px ?? 0;
+          return `${idx + 1},${c.centro_x},${c.centro_y},${c.area_px},${citoArea},${mean},${c.classificacao},${c.cobertura_verde_pct},${c.cobertura_amarela_pct}`;
         })
         .join("\n");
       const nomeBase = sel.relatorio.Arquivo.replace(/\.[^.]+$/, "");
@@ -409,10 +410,20 @@ export default function NavegadorResultados({
           const r = Math.max(3, Math.round(c.raio_eq ?? Math.sqrt(c.area_px / Math.PI)));
           linhas.push(`makeOval(${c.centro_x - r}, ${c.centro_y - r}, ${r * 2}, ${r * 2});`);
         }
-        linhas.push(`Roi.setName("Cell_${c.celula_id}_${c.classificacao}");`);
-        linhas.push(`Roi.setStrokeColor("${cor}");`);
-        linhas.push(`Roi.setStrokeWidth(1.5);`);
+        linhas.push(`Roi.setName("Cell_${c.celula_id}_nucleus_${c.classificacao}");`);
+        linhas.push(`Roi.setStrokeColor("#60a5fa");`);
+        linhas.push(`Roi.setStrokeWidth(1.2);`);
         linhas.push(`roiManager("Add");`);
+
+        if (c.contorno_citoplasma_pts && c.contorno_citoplasma_pts.length >= 3) {
+          const cxs = c.contorno_citoplasma_pts.map((pt) => pt[0]).join(",");
+          const cys = c.contorno_citoplasma_pts.map((pt) => pt[1]).join(",");
+          linhas.push(`makePolygon(${cxs},${cys});`);
+          linhas.push(`Roi.setName("Cell_${c.celula_id}_cytoplasm_${c.classificacao}");`);
+          linhas.push(`Roi.setStrokeColor("${cor}");`);
+          linhas.push(`Roi.setStrokeWidth(1.6);`);
+          linhas.push(`roiManager("Add");`);
+        }
       });
       linhas.push(`setBatchMode(false);`);
       linhas.push(`roiManager("Show All without labels");`);
@@ -458,7 +469,7 @@ export default function NavegadorResultados({
 
   const statsMorfologicas = useMemo(() => {
     if (celulasFiltradas.length === 0) {
-      return { areaMedia: 0, areaDP: 0, areaMediana: 0, raioMedio: 0, meanInt: 0 };
+      return { areaMedia: 0, areaDP: 0, areaCitoMedia: 0, raioMedio: 0, meanInt: 0 };
     }
     const n = celulasFiltradas.length;
     const areas = celulasFiltradas.map((c) => c.area_px).sort((a, b) => a - b);
@@ -466,8 +477,8 @@ export default function NavegadorResultados({
     const areaMedia = somaArea / n;
     const variancia = areas.reduce((s, v) => s + (v - areaMedia) ** 2, 0) / n;
     const areaDP = Math.sqrt(variancia);
-    const areaMediana =
-      n % 2 === 1 ? areas[Math.floor(n / 2)] : (areas[n / 2 - 1] + areas[n / 2]) / 2;
+    const areaCitoMedia =
+      celulasFiltradas.reduce((s, c) => s + (c.area_citoplasma_px ?? 0), 0) / n;
     const raioMedio =
       celulasFiltradas.reduce(
         (s, c) => s + (c.raio_eq ?? Math.sqrt(c.area_px / Math.PI)),
@@ -475,7 +486,7 @@ export default function NavegadorResultados({
       ) / n;
     const meanInt =
       celulasFiltradas.reduce((s, c) => s + (c.mean_intensity ?? 0), 0) / n;
-    return { areaMedia, areaDP, areaMediana, raioMedio, meanInt };
+    return { areaMedia, areaDP, areaCitoMedia, raioMedio, meanInt };
   }, [celulasFiltradas]);
 
   const celulaDestacada = useMemo(
@@ -1068,9 +1079,9 @@ export default function NavegadorResultados({
                   </span>
                 </div>
                 <div className="morph-stat-pill">
-                  <span className="morph-stat-label">Área Mediana</span>
+                  <span className="morph-stat-label">Área Citoplasma Média</span>
                   <span className="morph-stat-val">
-                    {formatarDecimal(statsMorfologicas.areaMediana, idioma, 1)} px²
+                    {formatarDecimal(statsMorfologicas.areaCitoMedia, idioma, 1)} px²
                   </span>
                 </div>
                 <div className="morph-stat-pill">
@@ -1139,7 +1150,8 @@ export default function NavegadorResultados({
                       <th>Status</th>
                       <th className="num">X (px)</th>
                       <th className="num">Y (px)</th>
-                      <th className="num">Area (px²)</th>
+                      <th className="num">Núcleo (px²)</th>
+                      <th className="num">Citoplasma (px²)</th>
                       <th className="num">Mean</th>
                       <th className="num">Verde (%)</th>
                       <th className="num">Amarelo (%)</th>
@@ -1172,6 +1184,9 @@ export default function NavegadorResultados({
                         <td className="num">{formatarInteiro(c.centro_x, idioma)}</td>
                         <td className="num">{formatarInteiro(c.centro_y, idioma)}</td>
                         <td className="num">{formatarInteiro(c.area_px, idioma)}</td>
+                        <td className="num">
+                          {formatarInteiro(c.area_citoplasma_px ?? 0, idioma)}
+                        </td>
                         <td className="num">
                           {formatarDecimal(c.mean_intensity ?? 0, idioma, 1)}
                         </td>
