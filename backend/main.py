@@ -4,12 +4,20 @@ main.py — API local do CytoCount v1.1.0.
 Autor: Gabriel Candido Messias dos Santos
 """
 import atexit
+import asyncio
 import base64
+import faulthandler
+import gc
 import io
 import json
+import logging
+from logging.handlers import RotatingFileHandler
 import os
 import shutil
+import sys
 import tempfile
+import time
+import traceback
 import uuid
 import zipfile
 from typing import Any, Optional
@@ -17,13 +25,49 @@ from typing import Any, Optional
 import cv2
 import numpy as np
 import pandas as pd
-from fastapi import Body, FastAPI, File, Form, UploadFile
+from fastapi import APIRouter, Body, FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 
 import core
 
+def _obter_diretorio_logs() -> str:
+    appdata = os.environ.get("APPDATA")
+    if appdata:
+        log_dir = os.path.join(appdata, "CytoCount", "logs")
+    else:
+        log_dir = os.path.join(tempfile.gettempdir(), "CytoCount", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    return log_dir
+
+_LOG_DIR = _obter_diretorio_logs()
+_LOG_FILE = os.path.join(_LOG_DIR, "python-backend.log")
+_CRASH_LOG = os.path.join(_LOG_DIR, "python-crash.log")
+
+# 1. Configura RotatingFileHandler (5MB, 3 backups)
+_file_handler = RotatingFileHandler(_LOG_FILE, maxBytes=5 * 1024 * 1024, backupCount=3, encoding="utf-8")
+_file_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+_console_handler = logging.StreamHandler(sys.stdout)
+_console_handler.setFormatter(logging.Formatter("[%(asctime)s] [%(levelname)s] %(message)s"))
+
+logging.basicConfig(level=logging.INFO, handlers=[_file_handler, _console_handler])
+
+# 2. Ativa faulthandler para capturar falhas em C (OpenCV, segfaults)
+try:
+    _crash_f = open(_CRASH_LOG, "a", encoding="utf-8")
+    faulthandler.enable(_crash_f)
+except Exception as e:
+    logging.warning(f"Não foi possível habilitar faulthandler: {e}")
+
+# 3. Handler global para exceções não tratadas no Python
+def _global_excepthook(exc_type, exc_value, exc_traceback):
+    logging.critical("Exceção não tratada capturada pelo sys.excepthook:", exc_info=(exc_type, exc_value, exc_traceback))
+    sys.__excepthook__(exc_type, exc_value, exc_traceback)
+
+sys.excepthook = _global_excepthook
+
 app = FastAPI(title="CytoCount Scientific API", version=core.APP_VERSION)
+api_router = APIRouter()
 
 app.add_middleware(
     CORSMiddleware,
@@ -31,6 +75,59 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def log_requests(request: Request, call_next):
+    start_time = time.time()
+    try:
+        response = await call_next(request)
+        duration_ms = (time.time() - start_time) * 1000.0
+        logging.info(f"[{request.method}] {request.url.path} -> {response.status_code} ({duration_ms:.1f}ms)")
+        return response
+    except Exception as e:
+        duration_ms = (time.time() - start_time) * 1000.0
+        logging.error(f"[{request.method}] {request.url.path} falhou após {duration_ms:.1f}ms: {e}")
+        raise
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    tb = traceback.format_exc()
+    logging.error(f"Erro interno não tratado em {request.method} {request.url}: {exc}\n{tb}")
+    return JSONResponse(
+        status_code=500,
+        content={
+            "erro": f"Erro interno do motor de análise: {str(exc)}",
+            "metodo": request.method,
+            "caminho": str(request.url.path),
+            "detalhes": tb,
+        },
+    )
+
+_PROCESS_LOCK = asyncio.Lock()
+MAX_MEGAPIXELS = 16.0  # Limite de segurança de memória (~4096 x 4096)
+
+def _proteger_e_ajustar_bytes_imagem(file_bytes: bytes) -> tuple[bytes, Optional[str]]:
+    try:
+        arr = np.frombuffer(file_bytes, dtype=np.uint8)
+        img = cv2.imdecode(arr, cv2.IMREAD_UNCHANGED)
+        if img is None:
+            return file_bytes, None
+        h, w = img.shape[:2]
+        mp = (h * w) / 1_000_000.0
+        if mp <= MAX_MEGAPIXELS:
+            return file_bytes, None
+        fator = np.sqrt(MAX_MEGAPIXELS / mp)
+        new_w = max(100, int(w * fator))
+        new_h = max(100, int(h * fator))
+        redimensionada = cv2.resize(img, (new_w, new_h), interpolation=cv2.INTER_AREA)
+        ok, buf = cv2.imencode(".png", redimensionada)
+        if ok:
+            aviso = f"Imagem de {w}x{h} ({mp:.1f}MP) redimensionada para {new_w}x{new_h} ({MAX_MEGAPIXELS:.1f}MP) para proteção de memória."
+            logging.warning(aviso)
+            return buf.tobytes(), aviso
+    except Exception as e:
+        logging.warning(f"Falha ao checar megapixels da imagem: {e}")
+    return file_bytes, None
 
 _TEMP_SESSION_DIR = tempfile.mkdtemp(prefix="cytocount_sess_")
 
@@ -98,64 +195,82 @@ def _salvar_artefatos_sessao(
     }
 
 
-@app.get("/health")
+@api_router.get("/health")
 def health():
-    return {"status": "ok", "version": core.APP_VERSION}
-
-
-@app.post("/sample-demo")
-async def carregar_amostra_demo(idioma: str = Form("pt")):
-    """Carrega a imagem de fluorescência de exemplo embutida no pacote e a processa."""
-    file_bytes = core.gerar_amostra_exemplo()
-    nome_arquivo = "exemplo_fluorescencia.png"
-    parametros = {
-        "bias_azul": 0,
-        "bias_verde": 0,
-        "bias_amarelo": 0,
-        "kernel_tophat": None,
-        "aplicar_bilateral": True,
-        "min_circularidade": 0.15,
-        "area_maxima": None,
-        "formula_viabilidade": "Padrão Biológico (Vivas / (Vivas + Mortas))",
-        "roi": None,
-        "idioma": idioma,
-    }
-
-    relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
-        core.processar_imagem_na_memoria(file_bytes, nome_arquivo, parametros)
-    )
-
-    if erro is not None:
-        return {"erro": erro, "arquivo": nome_arquivo}
-
-    job_id = str(uuid.uuid4())
-    _salvar_artefatos_sessao(
-        job_id,
-        nome_arquivo,
-        file_bytes,
-        original_rgb,
-        img_bgr_salvar,
-        relatorio,
-        mascaras,
-        parametros,
-    )
-
     return {
-        "id": job_id,
-        "relatorio": relatorio,
-        "processada_png_b64": _png_base64(img_rgb_tela),
-        "original_png_b64": _png_base64(original_rgb),
-        "mascaras_b64": {
-            "azul": _png_base64(mascaras["azul"]),
-            "verde": _png_base64(mascaras["verde"]),
-            "amarelo": _png_base64(mascaras["amarelo"]),
-        },
-        "tabela_celulas": mascaras.get("tabela_celulas", []),
-        "manual_edits": [],
+        "status": "ok",
+        "version": core.APP_VERSION,
+        "pid": os.getpid(),
+        "routes": [getattr(r, "path", str(r)) for r in app.routes],
     }
 
 
-@app.post("/process")
+@api_router.post("/sample-demo")
+async def carregar_amostra_demo(request: Request, idioma: Optional[str] = Form(None)):
+    """Carrega a imagem de fluorescência de exemplo embutida no pacote e a processa."""
+    if not idioma:
+        try:
+            body = await request.json()
+            idioma = body.get("idioma", "pt")
+        except Exception:
+            idioma = "pt"
+    if not idioma:
+        idioma = "pt"
+
+    async with _PROCESS_LOCK:
+        file_bytes = core.gerar_amostra_exemplo()
+        nome_arquivo = "exemplo_fluorescencia.png"
+        parametros = {
+            "bias_azul": 0,
+            "bias_verde": 0,
+            "bias_amarelo": 0,
+            "kernel_tophat": None,
+            "aplicar_bilateral": True,
+            "min_circularidade": 0.15,
+            "area_maxima": None,
+            "formula_viabilidade": "Padrão Biológico (Vivas / (Vivas + Mortas))",
+            "roi": None,
+            "idioma": idioma,
+        }
+
+        relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
+            core.processar_imagem_na_memoria(file_bytes, nome_arquivo, parametros)
+        )
+
+        if erro is not None:
+            return {"erro": erro, "arquivo": nome_arquivo}
+
+        job_id = str(uuid.uuid4())
+        _salvar_artefatos_sessao(
+            job_id,
+            nome_arquivo,
+            file_bytes,
+            original_rgb,
+            img_bgr_salvar,
+            relatorio,
+            mascaras,
+            parametros,
+        )
+
+        resp_payload = {
+            "id": job_id,
+            "relatorio": relatorio,
+            "processada_png_b64": _png_base64(img_rgb_tela),
+            "original_png_b64": _png_base64(original_rgb),
+            "mascaras_b64": {
+                "azul": _png_base64(mascaras["azul"]),
+                "verde": _png_base64(mascaras["verde"]),
+                "amarelo": _png_base64(mascaras["amarelo"]),
+            },
+            "tabela_celulas": mascaras.get("tabela_celulas", []),
+            "manual_edits": [],
+        }
+        del file_bytes, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras
+        gc.collect()
+        return resp_payload
+
+
+@api_router.post("/process")
 async def process_imagem(
     arquivo: UploadFile = File(...),
     bias_azul: int = Form(0),
@@ -168,7 +283,8 @@ async def process_imagem(
     roi_json: Optional[str] = Form(None),
     idioma: str = Form("pt"),
 ):
-    file_bytes = await arquivo.read()
+    raw_bytes = await arquivo.read()
+    file_bytes, aviso_mp = _proteger_e_ajustar_bytes_imagem(raw_bytes)
 
     roi = None
     if roi_json:
@@ -191,41 +307,48 @@ async def process_imagem(
     }
 
     nome_arq = arquivo.filename or "amostra.png"
-    relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
-        core.processar_imagem_na_memoria(file_bytes, nome_arq, parametros)
-    )
+    async with _PROCESS_LOCK:
+        relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
+            core.processar_imagem_na_memoria(file_bytes, nome_arq, parametros)
+        )
 
-    if erro is not None:
-        return {"erro": erro, "arquivo": nome_arq}
+        if erro is not None:
+            return {"erro": erro, "arquivo": nome_arq}
 
-    job_id = str(uuid.uuid4())
-    _salvar_artefatos_sessao(
-        job_id,
-        nome_arq,
-        file_bytes,
-        original_rgb,
-        img_bgr_salvar,
-        relatorio,
-        mascaras,
-        parametros,
-    )
+        job_id = str(uuid.uuid4())
+        _salvar_artefatos_sessao(
+            job_id,
+            nome_arq,
+            file_bytes,
+            original_rgb,
+            img_bgr_salvar,
+            relatorio,
+            mascaras,
+            parametros,
+        )
 
-    return {
-        "id": job_id,
-        "relatorio": relatorio,
-        "processada_png_b64": _png_base64(img_rgb_tela),
-        "original_png_b64": _png_base64(original_rgb),
-        "mascaras_b64": {
-            "azul": _png_base64(mascaras["azul"]),
-            "verde": _png_base64(mascaras["verde"]),
-            "amarelo": _png_base64(mascaras["amarelo"]),
-        },
-        "tabela_celulas": mascaras.get("tabela_celulas", []),
-        "manual_edits": [],
-    }
+        resp = {
+            "id": job_id,
+            "relatorio": relatorio,
+            "processada_png_b64": _png_base64(img_rgb_tela),
+            "original_png_b64": _png_base64(original_rgb),
+            "mascaras_b64": {
+                "azul": _png_base64(mascaras["azul"]),
+                "verde": _png_base64(mascaras["verde"]),
+                "amarelo": _png_base64(mascaras["amarelo"]),
+            },
+            "tabela_celulas": mascaras.get("tabela_celulas", []),
+            "manual_edits": [],
+        }
+        if aviso_mp:
+            resp["aviso"] = aviso_mp
+
+        del file_bytes, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras
+        gc.collect()
+        return resp
 
 
-@app.post("/reprocess/{job_id}")
+@api_router.post("/reprocess/{job_id}")
 async def reprocessar_amostra(
     job_id: str,
     bias_azul: int = Form(0),
@@ -239,12 +362,24 @@ async def reprocessar_amostra(
     idioma: str = Form("pt"),
 ):
     if job_id not in _SESSAO:
-        return {"erro": "Amostra não encontrada na sessão atual."}
+        return JSONResponse(
+            status_code=404,
+            content={
+                "erro": "Amostra não encontrada na sessão. Por favor, reenvie a imagem.",
+                "job_id": job_id,
+            },
+        )
 
     item = _SESSAO[job_id]
     raw_path = item.get("raw_path")
     if not raw_path or not os.path.exists(raw_path):
-        return {"erro": "Arquivo original não disponível em cache."}
+        return JSONResponse(
+            status_code=404,
+            content={
+                "erro": "Arquivo original da amostra não disponível em cache. Por favor, reenvie a imagem.",
+                "job_id": job_id,
+            },
+        )
 
     with open(raw_path, "rb") as f:
         file_bytes = f.read()
@@ -270,41 +405,45 @@ async def reprocessar_amostra(
         "idioma": idioma,
     }
 
-    relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
-        core.processar_imagem_na_memoria(file_bytes, nome_arquivo, parametros)
-    )
+    async with _PROCESS_LOCK:
+        relatorio, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras, erro = (
+            core.processar_imagem_na_memoria(file_bytes, nome_arquivo, parametros)
+        )
 
-    if erro is not None:
-        return {"erro": erro, "arquivo": nome_arquivo}
+        if erro is not None:
+            return {"erro": erro, "arquivo": nome_arquivo}
 
-    _salvar_artefatos_sessao(
-        job_id,
-        nome_arquivo,
-        file_bytes,
-        original_rgb,
-        img_bgr_salvar,
-        relatorio,
-        mascaras,
-        parametros,
-        manual_edits=[],
-    )
+        _salvar_artefatos_sessao(
+            job_id,
+            nome_arquivo,
+            file_bytes,
+            original_rgb,
+            img_bgr_salvar,
+            relatorio,
+            mascaras,
+            parametros,
+            item.get("manual_edits", []),
+        )
 
-    return {
-        "id": job_id,
-        "relatorio": relatorio,
-        "processada_png_b64": _png_base64(img_rgb_tela),
-        "original_png_b64": _png_base64(original_rgb),
-        "mascaras_b64": {
-            "azul": _png_base64(mascaras["azul"]),
-            "verde": _png_base64(mascaras["verde"]),
-            "amarelo": _png_base64(mascaras["amarelo"]),
-        },
-        "tabela_celulas": mascaras.get("tabela_celulas", []),
-        "manual_edits": [],
-    }
+        resp = {
+            "id": job_id,
+            "relatorio": relatorio,
+            "processada_png_b64": _png_base64(img_rgb_tela),
+            "original_png_b64": _png_base64(original_rgb),
+            "mascaras_b64": {
+                "azul": _png_base64(mascaras["azul"]),
+                "verde": _png_base64(mascaras["verde"]),
+                "amarelo": _png_base64(mascaras["amarelo"]),
+            },
+            "tabela_celulas": mascaras.get("tabela_celulas", []),
+            "manual_edits": item.get("manual_edits", []),
+        }
+        del file_bytes, img_rgb_tela, img_bgr_salvar, original_rgb, mascaras
+        gc.collect()
+        return resp
 
 
-@app.post("/update-cells/{job_id}")
+@api_router.post("/update-cells/{job_id}")
 async def atualizar_celulas_manual(
     job_id: str,
     payload: dict[str, Any] = Body(...),
@@ -315,7 +454,13 @@ async def atualizar_celulas_manual(
     redesenha os contornos e atualiza a imagem de exportação.
     """
     if job_id not in _SESSAO:
-        return {"erro": "Amostra não encontrada na sessão para atualização manual."}
+        return JSONResponse(
+            status_code=404,
+            content={
+                "erro": "Amostra não encontrada na sessão para atualização manual.",
+                "job_id": job_id,
+            },
+        )
 
     item = _SESSAO[job_id]
     tabela_celulas = payload.get("tabela_celulas", [])
@@ -370,7 +515,7 @@ async def atualizar_celulas_manual(
     }
 
 
-@app.post("/merge-channels")
+@api_router.post("/merge-channels")
 async def mesclar_canais(
     arquivo_azul: Optional[UploadFile] = File(None),
     arquivo_verde: Optional[UploadFile] = File(None),
@@ -495,7 +640,7 @@ async def mesclar_canais(
         return {"erro": f"Erro ao mesclar canais: {e}"}
 
 
-@app.post("/export-publication/{job_id}")
+@api_router.post("/export-publication/{job_id}")
 async def exportar_figura_publicacao(
     job_id: str,
     payload: dict[str, Any] = Body(...),
@@ -505,16 +650,25 @@ async def exportar_figura_publicacao(
     barra de escala (µm/pixel), legenda TrueType localizada e opções de paleta/painel.
     """
     if job_id not in _SESSAO:
-        return {"erro": "Amostra não encontrada na sessão atual."}
+        return JSONResponse(
+            status_code=404,
+            content={"erro": "Amostra não encontrada na sessão.", "job_id": job_id},
+        )
 
     item = _SESSAO[job_id]
     orig_path = item.get("orig_path")
     if not orig_path or not os.path.exists(orig_path):
-        return {"erro": "Imagem original não encontrada em cache."}
+        return JSONResponse(
+            status_code=404,
+            content={"erro": "Imagem original não encontrada em cache.", "job_id": job_id},
+        )
 
     orig_bgr = cv2.imread(orig_path)
     if orig_bgr is None:
-        return {"erro": "Falha ao ler imagem original em cache."}
+        return JSONResponse(
+            status_code=500,
+            content={"erro": "Falha ao ler imagem original em cache.", "job_id": job_id},
+        )
     original_rgb = cv2.cvtColor(orig_bgr, cv2.COLOR_BGR2RGB)
 
     formato = str(payload.get("formato", "png")).lower()
@@ -546,7 +700,7 @@ async def exportar_figura_publicacao(
             tamanho_barra_um=barra_val,
         )
     except Exception as e:
-        return {"erro": f"Erro ao gerar figura para publicação: {e}"}
+        return JSONResponse(status_code=500, content={"erro": f"Erro ao gerar figura para publicação: {e}"})
 
     nome_base = item["nome_arquivo"].rsplit(".", 1)[0]
     ext = "tiff" if formato in ("tif", "tiff") else ("pdf" if formato == "pdf" else ("svg" if formato == "svg" else "png"))
@@ -586,11 +740,11 @@ def _construir_zip_sessao(job_ids: list[str]) -> bytes:
     return zip_buffer.getvalue()
 
 
-@app.get("/export-zip")
+@api_router.get("/export-zip")
 def export_zip(ids: str):
     job_ids = [i for i in ids.split(",") if i in _SESSAO]
     if not job_ids:
-        return {"erro": "Nenhum resultado válido para exportar."}
+        return JSONResponse(status_code=404, content={"erro": "Nenhum resultado válido para exportar."})
     zip_bytes = _construir_zip_sessao(job_ids)
     return StreamingResponse(
         io.BytesIO(zip_bytes),
@@ -599,11 +753,11 @@ def export_zip(ids: str):
     )
 
 
-@app.get("/export-zip-b64")
+@api_router.get("/export-zip-b64")
 def export_zip_b64(ids: str):
     job_ids = [i for i in ids.split(",") if i in _SESSAO]
     if not job_ids:
-        return {"erro": "Nenhum resultado válido para exportar."}
+        return JSONResponse(status_code=404, content={"erro": "Nenhum resultado válido para exportar."})
     zip_bytes = _construir_zip_sessao(job_ids)
     return {
         "conteudo_b64": base64.b64encode(zip_bytes).decode("ascii"),
@@ -611,7 +765,7 @@ def export_zip_b64(ids: str):
     }
 
 
-@app.delete("/session")
+@api_router.delete("/session")
 def limpar_sessao():
     _SESSAO.clear()
     for fname in os.listdir(_TEMP_SESSION_DIR):
@@ -622,35 +776,47 @@ def limpar_sessao():
     return {"status": "limpo"}
 
 
+# Registra rotas com e sem prefixo /api para compatibilidade total
+app.include_router(api_router, prefix="/api")
+app.include_router(api_router, prefix="")
+
+
 def _start_parent_watchdog(parent_pid: int):
-    import sys
     import threading
+    import time
 
     def _watch():
+        logging.info(f"[watchdog] Iniciado monitoramento do processo pai PID: {parent_pid}")
         if sys.platform == "win32":
             import ctypes
-            SYNCHRONIZE = 0x00100000
-            INFINITE = 0xFFFFFFFF
             kernel32 = ctypes.windll.kernel32
-            handle = kernel32.OpenProcess(SYNCHRONIZE, False, parent_pid)
-            if not handle:
-                print(f"[watchdog] Processo pai {parent_pid} já finalizado. Encerrando.")
-                os._exit(0)
-            kernel32.WaitForSingleObject(handle, INFINITE)
-            kernel32.CloseHandle(handle)
-            print("[watchdog] Processo pai fechado. Encerrando backend Python.")
-            os._exit(0)
+            PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+            STILL_ACTIVE = 259
+            while True:
+                time.sleep(2)
+                handle = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, parent_pid)
+                if not handle:
+                    err = kernel32.GetLastError()
+                    if err == 87:  # ERROR_INVALID_PARAMETER (PID does not exist)
+                        logging.info(f"[watchdog] Processo pai {parent_pid} encerrado. Finalizando backend Python.")
+                        os._exit(0)
+                    continue
+                exit_code = ctypes.c_ulong()
+                ok = kernel32.GetExitCodeProcess(handle, ctypes.byref(exit_code))
+                kernel32.CloseHandle(handle)
+                if ok and exit_code.value != STILL_ACTIVE:
+                    logging.info(f"[watchdog] Processo pai {parent_pid} encerrou com código {exit_code.value}. Finalizando backend.")
+                    os._exit(0)
         else:
-            import time
             while True:
                 time.sleep(2)
                 try:
                     os.kill(parent_pid, 0)
                 except OSError:
-                    print("[watchdog] Processo pai inacessível. Encerrando.")
+                    logging.info(f"[watchdog] Processo pai {parent_pid} não responde. Finalizando backend.")
                     os._exit(0)
 
-    t = threading.Thread(target=_watch, daemon=True, name="ParentWatchdog")
+    t = threading.Thread(target=_watch, daemon=True, name="SafeParentWatchdog")
     t.start()
 
 

@@ -3,9 +3,10 @@
 // Responsabilidades:
 // 1. Gerenciar o ciclo de vida do backend Python (sidecar viacell-backend)
 //    - Alocação dinâmica de porta (evita conflitos de porta ocupada)
-//    - Roteamento de logs stdout/stderr e eventos do frontend para arquivo e memória
-//    - Encerramento estrito de processos filhos ao fechar o app (sem processos zumbis)
-// 2. Expor comandos nativos (diálogos de pasta, "Salvar como", config.json e logs).
+//    - Supervisão ativa com reinício automático (máx. 3 tentativas)
+//    - Windows Job Object para encerramento garantido de processos-filhos
+//    - Roteamento de logs stdout/stderr e eventos do frontend para arquivo rotativo
+// 2. Expor comandos nativos (diálogos de pasta, "Salvar como", config.json, logs e reinício do motor).
 
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
@@ -14,24 +15,31 @@ use std::fs::{self, OpenOptions};
 use std::io::Write;
 use std::net::{SocketAddr, TcpListener, TcpStream};
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Emitter, Manager};
 use tauri_plugin_shell::process::{CommandChild, CommandEvent};
 use tauri_plugin_shell::ShellExt;
 
 struct BackendState {
-    port: u16,
-    #[allow(dead_code)]
+    port: Arc<Mutex<u16>>,
     child: Arc<Mutex<Option<CommandChild>>>,
     recent_logs: Arc<Mutex<VecDeque<String>>>,
     log_file_path: PathBuf,
     config_file_path: PathBuf,
+    consecutive_restarts: Arc<AtomicU32>,
 }
 
 #[tauri::command]
 fn get_backend_url(state: tauri::State<BackendState>) -> String {
-    format!("http://127.0.0.1:{}", state.port)
+    let p = state.port.lock().map(|l| *l).unwrap_or(8756);
+    format!("http://127.0.0.1:{p}")
+}
+
+#[tauri::command]
+fn get_backend_port(state: tauri::State<BackendState>) -> u16 {
+    state.port.lock().map(|l| *l).unwrap_or(8756)
 }
 
 #[tauri::command]
@@ -57,6 +65,63 @@ fn registrar_log_frontend(
     let prefix = format!("[frontend:{}]", nivel.to_lowercase());
     log_line(&state.log_file_path, &state.recent_logs, &prefix, &mensagem);
     Ok(())
+}
+
+#[tauri::command]
+fn abrir_pasta_logs(state: tauri::State<BackendState>) -> Result<(), String> {
+    if let Some(parent) = state.log_file_path.parent() {
+        #[cfg(target_os = "windows")]
+        {
+            let _ = std::process::Command::new("explorer")
+                .arg(parent)
+                .spawn();
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            let _ = std::process::Command::new("xdg-open")
+                .arg(parent)
+                .spawn();
+        }
+    }
+    Ok(())
+}
+
+#[tauri::command]
+async fn reiniciar_backend(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, BackendState>,
+) -> Result<String, String> {
+    log_line(
+        &state.log_file_path,
+        &state.recent_logs,
+        "[main]",
+        "Solicitação de reinício manual do motor Python.",
+    );
+
+    // Encerra child anterior
+    if let Ok(mut lock) = state.child.lock() {
+        if let Some(child) = lock.take() {
+            let _ = child.kill();
+        }
+    }
+
+    let nova_porta = find_available_port(8757, 50);
+    if let Ok(mut p) = state.port.lock() {
+        *p = nova_porta;
+    }
+
+    state.consecutive_restarts.store(0, Ordering::SeqCst);
+
+    spawn_sidecar_process(&app, &state, nova_porta)?;
+
+    let url = format!("http://127.0.0.1:{nova_porta}");
+    let _ = app.emit("backend-status", serde_json::json!({
+        "online": true,
+        "url": url,
+        "msg": "Motor reiniciado com sucesso."
+    }));
+
+    Ok(url)
 }
 
 #[tauri::command]
@@ -263,9 +328,218 @@ fn chrono_lite_timestamp() -> String {
     }
 }
 
+fn instalar_panic_hook(log_file_path: PathBuf) {
+    std::panic::set_hook(Box::new(move |info| {
+        let location = info
+            .location()
+            .map(|l| format!("{}:{}:{}", l.file(), l.line(), l.column()))
+            .unwrap_or_else(|| "desconhecido".into());
+        let payload = if let Some(s) = info.payload().downcast_ref::<&str>() {
+            (*s).to_string()
+        } else if let Some(s) = info.payload().downcast_ref::<String>() {
+            s.clone()
+        } else {
+            "Pânico sem mensagem".to_string()
+        };
+        let msg = format!("[FATAL PANIC] em {location}: {payload}");
+        eprintln!("{msg}");
+        if let Ok(mut f) = OpenOptions::new().create(true).append(true).open(&log_file_path) {
+            let _ = writeln!(f, "[{}] {msg}", chrono_lite_timestamp());
+        }
+    }));
+}
+
+#[cfg(target_os = "windows")]
+fn configurar_job_object_cleanup() {
+    use std::os::windows::raw::HANDLE;
+    #[repr(C)]
+    struct IO_COUNTERS {
+        read_operation_count: u64,
+        write_operation_count: u64,
+        other_operation_count: u64,
+        read_transfer_count: u64,
+        write_transfer_count: u64,
+        other_transfer_count: u64,
+    }
+    #[repr(C)]
+    struct JOBOBJECT_BASIC_LIMIT_INFORMATION {
+        per_process_user_time_limit: i64,
+        per_job_user_time_limit: i64,
+        limit_flags: u32,
+        minimum_working_set_size: usize,
+        maximum_working_set_size: usize,
+        active_process_limit: u32,
+        affinity: usize,
+        priority_class: u32,
+        scheduling_class: u32,
+    }
+    #[repr(C)]
+    struct JOBOBJECT_EXTENDED_LIMIT_INFORMATION {
+        basic_limit_information: JOBOBJECT_BASIC_LIMIT_INFORMATION,
+        io_info: IO_COUNTERS,
+        process_memory_limit: usize,
+        job_memory_limit: usize,
+        peak_process_memory_used: usize,
+        peak_job_memory_used: usize,
+    }
+    extern "system" {
+        fn CreateJobObjectW(lp_job_attributes: *mut std::ffi::c_void, lp_name: *const u16) -> HANDLE;
+        fn SetInformationJobObject(
+            h_job: HANDLE,
+            job_object_info_class: u32,
+            lp_job_object_info: *mut std::ffi::c_void,
+            cb_job_object_info_length: u32,
+        ) -> i32;
+        fn AssignProcessToJobObject(h_job: HANDLE, h_process: HANDLE) -> i32;
+        fn GetCurrentProcess() -> HANDLE;
+    }
+    unsafe {
+        let job = CreateJobObjectW(std::ptr::null_mut(), std::ptr::null());
+        if !job.is_null() {
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            const JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE: u32 = 0x00002000;
+            const JOB_OBJECT_EXTENDED_LIMIT_INFORMATION: u32 = 9;
+            info.basic_limit_information.limit_flags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let ok = SetInformationJobObject(
+                job,
+                JOB_OBJECT_EXTENDED_LIMIT_INFORMATION,
+                &mut info as *mut _ as *mut std::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if ok != 0 {
+                let _ = AssignProcessToJobObject(job, GetCurrentProcess());
+            }
+        }
+    }
+}
+
+fn spawn_sidecar_process(
+    app: &tauri::AppHandle,
+    state: &BackendState,
+    port: u16,
+) -> Result<(), String> {
+    let shell = app.shell();
+    let sidecar_command = shell
+        .sidecar("viacell-backend")
+        .map_err(|e| format!("Binário viacell-backend não localizado: {e}"))?;
+
+    let parent_pid = std::process::id().to_string();
+    let port_str = port.to_string();
+    let cmd = sidecar_command.args(["--port", &port_str, "--parent-pid", &parent_pid]);
+
+    let (mut rx, child) = cmd
+        .spawn()
+        .map_err(|e| format!("Falha ao spawnar sidecar: {e}"))?;
+
+    let child_pid = child.pid();
+    log_line(
+        &state.log_file_path,
+        &state.recent_logs,
+        "[main]",
+        &format!("Sidecar iniciado com sucesso (PID: {child_pid}). Porta: {port}."),
+    );
+
+    if let Ok(mut lock) = state.child.lock() {
+        *lock = Some(child);
+    }
+
+    let log_file_for_task = state.log_file_path.clone();
+    let logs_for_task = state.recent_logs.clone();
+    let app_handle_for_task = app.clone();
+    let restart_counter = state.consecutive_restarts.clone();
+    let child_holder = state.child.clone();
+    let port_state = state.port.clone();
+
+    tauri::async_runtime::spawn(async move {
+        while let Some(event) = rx.recv().await {
+            match event {
+                CommandEvent::Stdout(bytes) => {
+                    let s = String::from_utf8_lossy(&bytes);
+                    log_line(&log_file_for_task, &logs_for_task, "[backend stdout]", &s);
+                    #[cfg(debug_assertions)]
+                    print!("[viacell-backend] {}", s);
+                }
+                CommandEvent::Stderr(bytes) => {
+                    let s = String::from_utf8_lossy(&bytes);
+                    log_line(&log_file_for_task, &logs_for_task, "[backend stderr]", &s);
+                    #[cfg(debug_assertions)]
+                    eprint!("[viacell-backend] {}", s);
+                }
+                CommandEvent::Terminated(term) => {
+                    log_line(
+                        &log_file_for_task,
+                        &logs_for_task,
+                        "[main]",
+                        &format!("Processo do backend finalizou com código: {:?}", term.code),
+                    );
+
+                    let restarts = restart_counter.fetch_add(1, Ordering::SeqCst);
+                    if restarts < 3 {
+                        log_line(
+                            &log_file_for_task,
+                            &logs_for_task,
+                            "[supervisor]",
+                            &format!("Tentativa de auto-reinício {restarts}/3 do motor..."),
+                        );
+                        let nova_porta = find_available_port(8757, 50);
+                        if let Ok(mut p) = port_state.lock() {
+                            *p = nova_porta;
+                        }
+
+                        let shell = app_handle_for_task.shell();
+                        if let Ok(sidecar_cmd) = shell.sidecar("viacell-backend") {
+                            let parent_pid_str = std::process::id().to_string();
+                            let p_str = nova_porta.to_string();
+                            let cmd_r = sidecar_cmd.args(["--port", &p_str, "--parent-pid", &parent_pid_str]);
+                            if let Ok((mut rx_new, new_child)) = cmd_r.spawn() {
+                                if let Ok(mut lk) = child_holder.lock() {
+                                    *lk = Some(new_child);
+                                }
+                                let _ = app_handle_for_task.emit("backend-status", serde_json::json!({
+                                    "online": true,
+                                    "url": format!("http://127.0.0.1:{nova_porta}"),
+                                    "msg": "Motor reiniciado automaticamente."
+                                }));
+
+                                // Loop para a nova instância
+                                while let Some(ev) = rx_new.recv().await {
+                                    if let CommandEvent::Stdout(b) = ev {
+                                        log_line(&log_file_for_task, &logs_for_task, "[backend stdout]", &String::from_utf8_lossy(&b));
+                                    } else if let CommandEvent::Stderr(b) = ev {
+                                        log_line(&log_file_for_task, &logs_for_task, "[backend stderr]", &String::from_utf8_lossy(&b));
+                                    }
+                                }
+                                return;
+                            }
+                        }
+                    }
+
+                    // Se não reiniciou ou excedeu tentativas:
+                    let _ = app_handle_for_task.emit("backend-status", serde_json::json!({
+                        "online": false,
+                        "code": term.code,
+                        "msg": "O motor de análise parou."
+                    }));
+                }
+                CommandEvent::Error(err) => {
+                    log_line(&log_file_for_task, &logs_for_task, "[backend error]", &err);
+                }
+                _ => {}
+            }
+        }
+    });
+
+    Ok(())
+}
+
 fn main() {
+    #[cfg(target_os = "windows")]
+    configurar_job_object_cleanup();
+
     let child_holder: Arc<Mutex<Option<CommandChild>>> = Arc::new(Mutex::new(None));
     let recent_logs: Arc<Mutex<VecDeque<String>>> = Arc::new(Mutex::new(VecDeque::new()));
+    let port_holder: Arc<Mutex<u16>> = Arc::new(Mutex::new(8756));
+    let consecutive_restarts: Arc<AtomicU32> = Arc::new(AtomicU32::new(0));
 
     let child_holder_cleanup = child_holder.clone();
 
@@ -273,9 +547,12 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .invoke_handler(tauri::generate_handler![
             get_backend_url,
+            get_backend_port,
             get_backend_logs,
             get_log_path,
             registrar_log_frontend,
+            abrir_pasta_logs,
+            reiniciar_backend,
             get_user_config,
             save_user_config,
             salvar_arquivo_dialogo,
@@ -298,6 +575,8 @@ fn main() {
         .setup({
             let child_holder = child_holder.clone();
             let recent_logs = recent_logs.clone();
+            let port_holder = port_holder.clone();
+            let consecutive_restarts = consecutive_restarts.clone();
 
             move |app| {
                 let log_dir = app
@@ -306,6 +585,8 @@ fn main() {
                     .unwrap_or_else(|_| std::env::temp_dir().join("CytoCount"));
                 let _ = fs::create_dir_all(&log_dir);
                 let log_file_path = log_dir.join("viacell-backend.log");
+
+                instalar_panic_hook(log_file_path.clone());
 
                 let config_dir = app
                     .path()
@@ -326,152 +607,79 @@ fn main() {
                 );
 
                 let default_port = 8756;
-                let (port, should_spawn) = if is_backend_responsive(default_port) {
+                let forcar_reuso_dev = std::env::var("CYTOCOUNT_REUSE_DEV_BACKEND").is_ok();
+                let (chosen_port, should_spawn) = if forcar_reuso_dev && is_backend_responsive(default_port) {
                     log_line(
                         &log_file_path,
                         &recent_logs,
                         "[main]",
-                        &format!("Backend detectado na porta {default_port}. Reutilizando instância ativa."),
+                        &format!("Backend de desenvolvimento detectado na porta {default_port}. Reutilizando instância ativa."),
                     );
                     (default_port, false)
                 } else {
-                    let chosen_port = if is_port_in_use(default_port) {
-                        let alternative = find_available_port(8757, 20);
+                    let port = if is_port_in_use(default_port) {
+                        let alternative = find_available_port(8757, 50);
                         log_line(
                             &log_file_path,
                             &recent_logs,
                             "[main]",
-                            &format!("Porta padrão {default_port} indisponível. Alocada porta alternativa {alternative}."),
+                            &format!("Porta padrão {default_port} indisponível ou ocupada por outro processo. Alocada porta limpa {alternative}."),
                         );
                         alternative
                     } else {
                         default_port
                     };
-                    (chosen_port, true)
+                    (port, true)
                 };
 
-                app.manage(BackendState {
-                    port,
+                if let Ok(mut p) = port_holder.lock() {
+                    *p = chosen_port;
+                }
+
+                let backend_state = BackendState {
+                    port: port_holder.clone(),
                     child: child_holder.clone(),
                     recent_logs: recent_logs.clone(),
                     log_file_path: log_file_path.clone(),
                     config_file_path,
-                });
+                    consecutive_restarts,
+                };
 
                 if should_spawn {
-                    let shell = app.handle().shell();
-                    match shell.sidecar("viacell-backend") {
-                        Ok(sidecar_command) => {
-                            let parent_pid = std::process::id().to_string();
-                            let port_str = port.to_string();
-                            let cmd = sidecar_command
-                                .args(["--port", &port_str, "--parent-pid", &parent_pid]);
-
-                            match cmd.spawn() {
-                                Ok((mut rx, child)) => {
-                                    log_line(
-                                        &log_file_path,
-                                        &recent_logs,
-                                        "[main]",
-                                        &format!(
-                                            "Sidecar iniciado com sucesso (PID: {}). Porta: {port}.",
-                                            child.pid()
-                                        ),
-                                    );
-
-                                    if let Ok(mut lock) = child_holder.lock() {
-                                        *lock = Some(child);
-                                    }
-
-                                    let log_file_for_task = log_file_path.clone();
-                                    let logs_for_task = recent_logs.clone();
-
-                                    tauri::async_runtime::spawn(async move {
-                                        while let Some(event) = rx.recv().await {
-                                            match event {
-                                                CommandEvent::Stdout(bytes) => {
-                                                    let s = String::from_utf8_lossy(&bytes);
-                                                    log_line(
-                                                        &log_file_for_task,
-                                                        &logs_for_task,
-                                                        "[backend stdout]",
-                                                        &s,
-                                                    );
-                                                    #[cfg(debug_assertions)]
-                                                    print!("[viacell-backend] {}", s);
-                                                }
-                                                CommandEvent::Stderr(bytes) => {
-                                                    let s = String::from_utf8_lossy(&bytes);
-                                                    log_line(
-                                                        &log_file_for_task,
-                                                        &logs_for_task,
-                                                        "[backend stderr]",
-                                                        &s,
-                                                    );
-                                                    #[cfg(debug_assertions)]
-                                                    eprint!("[viacell-backend] {}", s);
-                                                }
-                                                CommandEvent::Terminated(term) => {
-                                                    log_line(
-                                                        &log_file_for_task,
-                                                        &logs_for_task,
-                                                        "[main]",
-                                                        &format!(
-                                                            "Processo do backend finalizou com código: {:?}",
-                                                            term.code
-                                                        ),
-                                                    );
-                                                }
-                                                CommandEvent::Error(err) => {
-                                                    log_line(
-                                                        &log_file_for_task,
-                                                        &logs_for_task,
-                                                        "[backend error]",
-                                                        &err,
-                                                    );
-                                                }
-                                                _ => {}
-                                            }
-                                        }
-                                    });
-                                }
-                                Err(err) => {
-                                    log_line(
-                                        &log_file_path,
-                                        &recent_logs,
-                                        "[erro]",
-                                        &format!("Falha ao spawnar sidecar: {err}"),
-                                    );
-                                }
-                            }
-                        }
-                        Err(err) => {
-                            log_line(
-                                &log_file_path,
-                                &recent_logs,
-                                "[erro]",
-                                &format!("Binário viacell-backend não localizado: {err}"),
-                            );
-                        }
+                    if let Err(e) = spawn_sidecar_process(&app.handle().clone(), &backend_state, chosen_port) {
+                        log_line(
+                            &log_file_path,
+                            &recent_logs,
+                            "[erro]",
+                            &format!("Falha ao inicializar sidecar: {e}"),
+                        );
                     }
                 }
+
+                app.manage(backend_state);
 
                 Ok(())
             }
         })
-        .build(tauri::generate_context!())
-        .expect("erro ao inicializar o CytoCount");
+        .build(tauri::generate_context!());
 
-    app.run(move |_app_handle, event| {
-        match event {
-            tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
-                if let Ok(mut lock) = child_holder_cleanup.lock() {
-                    if let Some(child) = lock.take() {
-                        let _ = child.kill();
+    match app {
+        Ok(app) => {
+            app.run(move |_app_handle, event| {
+                match event {
+                    tauri::RunEvent::ExitRequested { .. } | tauri::RunEvent::Exit => {
+                        if let Ok(mut lock) = child_holder_cleanup.lock() {
+                            if let Some(child) = lock.take() {
+                                let _ = child.kill();
+                            }
+                        }
                     }
+                    _ => {}
                 }
-            }
-            _ => {}
+            });
         }
-    });
+        Err(err) => {
+            eprintln!("Erro fatal ao inicializar o CytoCount: {err}");
+        }
+    }
 }

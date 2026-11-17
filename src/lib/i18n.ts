@@ -32,6 +32,10 @@ export const TEXTOS = {
     menu_welcome: "Tela de Boas-vindas",
     menu_about: "Sobre o CytoCount",
     menu_feedback: "Enviar Feedback / Erro",
+    menu_open_logs: "Abrir pasta de logs",
+    engine_stopped: "O motor de análise parou",
+    btn_restart_engine: "Reiniciar motor",
+    btn_copy_details: "Copiar detalhes",
 
     sec_samples: "01 · AMOSTRAS",
     title_results: "Resultados",
@@ -156,6 +160,10 @@ export const TEXTOS = {
     menu_welcome: "Welcome Screen",
     menu_about: "About CytoCount",
     menu_feedback: "Send Feedback / Bug Report",
+    menu_open_logs: "Open logs folder",
+    engine_stopped: "Analysis engine has stopped",
+    btn_restart_engine: "Restart engine",
+    btn_copy_details: "Copy details",
 
     sec_samples: "01 · SAMPLES",
     title_results: "Results",
@@ -280,6 +288,10 @@ export const TEXTOS = {
     menu_welcome: "Pantalla de Bienvenida",
     menu_about: "Acerca de CytoCount",
     menu_feedback: "Enviar Comentarios / Error",
+    menu_open_logs: "Abrir carpeta de registros",
+    engine_stopped: "El motor de análisis se ha detenido",
+    btn_restart_engine: "Reiniciar motor",
+    btn_copy_details: "Copiar detalles",
 
     sec_samples: "01 · MUESTRAS",
     title_results: "Resultados",

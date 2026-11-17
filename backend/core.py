@@ -41,12 +41,14 @@ FRACAO_MINIMA_VERDE = 0.15
 
 def wilson(vivas: int, n: int, z: float = 1.96) -> tuple[float, float]:
     """Intervalo de confiança binomial de Wilson 95% (em porcentagem 0-100)."""
-    if n <= 0:
+    v = int(round(vivas))
+    total = int(round(n))
+    if total <= 0:
         return (0.0, 0.0)
-    p = vivas / n
-    d = 1.0 + z * z / n
-    c = p + z * z / (2.0 * n)
-    termo = p * (1.0 - p) / n + z * z / (4.0 * n * n)
+    p = v / total
+    d = 1.0 + z * z / total
+    c = p + z * z / (2.0 * total)
+    termo = p * (1.0 - p) / total + z * z / (4.0 * total * total)
     m = z * math.sqrt(max(0.0, termo))
     low = max(0.0, (c - m) / d * 100.0)
     high = min(100.0, (c + m) / d * 100.0)
@@ -72,8 +74,11 @@ def formatar_viabilidade_padrao(
     ic_baixo: float,
     ic_alto: float,
     idioma: str = "pt",
+    base_calculo: int = 1,
 ) -> str:
-    """Retorna string padronizada: '91,3% (IC 95%: 90,1–92,4)' conforme idioma."""
+    """Retorna string padronizada: '91,3% (IC 95%: 90,1–92,4)' conforme idioma ou '—' se base_calculo <= 0."""
+    if base_calculo <= 0:
+        return "—"
     v_str = formatar_decimal_locale(viabilidade, idioma, 1)
     lo_str = formatar_decimal_locale(ic_baixo, idioma, 1)
     hi_str = formatar_decimal_locale(ic_alto, idioma, 1)
@@ -134,9 +139,9 @@ def calcular_estatisticas_unificadas(
         "Viabilidade (%)": viabilidade,
         "IC 95% Baixo": ic_baixo,
         "IC 95% Alto": ic_alto,
-        "Viabilidade Formatada PT": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "pt"),
-        "Viabilidade Formatada EN": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "en"),
-        "Viabilidade Formatada ES": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "es"),
+        "Viabilidade Formatada PT": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "pt", base_calculo),
+        "Viabilidade Formatada EN": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "en", base_calculo),
+        "Viabilidade Formatada ES": formatar_viabilidade_padrao(viabilidade, ic_baixo, ic_alto, "es", base_calculo),
         "Alerta Indeterminadas": alerta_indeterminadas,
         "ROI": roi_str,
         "ROI Dict": roi_aplicado,
@@ -690,7 +695,8 @@ def desenhar_legenda_exportacao_pil(
     ic_lo = float(relatorio.get("IC 95% Baixo", 0.0))
     ic_hi = float(relatorio.get("IC 95% Alto", 0.0))
 
-    viab_fmt = formatar_viabilidade_padrao(viab, ic_lo, ic_hi, idioma)
+    base_calc = int(relatorio.get("Base de Cálculo", vivas + mortas))
+    viab_fmt = formatar_viabilidade_padrao(viab, ic_lo, ic_hi, idioma, base_calc)
     det_fmt = formatar_inteiro_locale(detectados, idioma)
     viv_fmt = formatar_inteiro_locale(vivas, idioma)
     mor_fmt = formatar_inteiro_locale(mortas, idioma)

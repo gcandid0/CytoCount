@@ -10,8 +10,8 @@ import {
   DownloadIcon,
   MailIcon,
   MessageSquareIcon,
-  XIcon,
 } from "./Icons";
+import Modal from "./Modal";
 
 export default function ModalFeedback({
   onFechar,
@@ -90,7 +90,6 @@ export default function ModalFeedback({
           tipo === "erro" ? "Relato de Erro" : "Sugestão"
         }`
       );
-      // Limita tamanho da URL mailto para evitar bloqueio do cliente de e-mail do sistema
       const corpoCompleto = construirTextoRelatorio();
       const corpoMailto = encodeURIComponent(corpoCompleto.slice(0, 1800));
       window.location.href = `mailto:?subject=${assunto}&body=${corpoMailto}`;
@@ -104,97 +103,87 @@ export default function ModalFeedback({
   };
 
   return (
-    <div className="modal-backdrop" onClick={onFechar}>
-      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <MessageSquareIcon size={18} />
-            <h2>Enviar Feedback ou Relatar Problema</h2>
-          </div>
-          <button type="button" className="modal-close" onClick={onFechar}>
-            <XIcon size={18} />
-          </button>
-        </div>
+    <Modal
+      titulo="Enviar Feedback ou Relatar Problema"
+      icone={<MessageSquareIcon size={20} />}
+      larguraMax={720}
+      onFechar={onFechar}
+    >
+      <div className="feedback-grid-2">
+        <label className="field">
+          <span className="field-label">Tipo de envio</span>
+          <select
+            className="select"
+            value={tipo}
+            onChange={(e) => setTipo(e.target.value as "erro" | "sugestao")}
+          >
+            <option value="erro">Erro / Comportamento inesperado</option>
+            <option value="sugestao">Sugestão de melhoria</option>
+          </select>
+        </label>
 
-        <div className="modal-body">
-          <div className="feedback-grid-2">
-            <label className="field">
-              <span className="field-label">Tipo de envio</span>
-              <select
-                className="select"
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as "erro" | "sugestao")}
-              >
-                <option value="erro">Erro / Comportamento inesperado</option>
-                <option value="sugestao">Sugestão de melhoria</option>
-              </select>
-            </label>
-
-            <label className="field">
-              <span className="field-label">Seu e-mail (opcional)</span>
-              <input
-                type="email"
-                className="input"
-                placeholder="nome@exemplo.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </label>
-          </div>
-
-          <label className="field" style={{ marginTop: 10 }}>
-            <span className="field-label">Mensagem / Passos para reproduzir</span>
-            <textarea
-              className="input feedback-textarea"
-              rows={4}
-              placeholder="Descreva o que aconteceu ou sua sugestão para o CytoCount..."
-              value={mensagem}
-              onChange={(e) => setMensagem(e.target.value)}
-            />
-          </label>
-
-          <label className="welcome-checkbox" style={{ marginTop: 10 }}>
-            <input
-              type="checkbox"
-              checked={anexarLog}
-              onChange={(e) => setAnexarLog(e.target.checked)}
-            />
-            <span>
-              Incluir informações do sistema (Versão {APP_VERSION}, SO) e log de diagnóstico
-            </span>
-          </label>
-
-          <div className="feedback-actions-bar">
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleCopiar}
-            >
-              {copiado ? <CheckIcon size={15} /> : <CopyIcon size={15} />}
-              <span>{copiado ? "Relatório Copiado!" : "Copiar relatório"}</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={handleSalvarArquivoLocal}
-            >
-              <DownloadIcon size={15} />
-              <span>Salvar relatório (.txt)</span>
-            </button>
-
-            <button
-              type="button"
-              className="btn-primary"
-              style={{ width: "auto", padding: "0 16px" }}
-              onClick={handleAbrirEmail}
-            >
-              <MailIcon size={15} />
-              <span>Abrir no E-mail (mailto:)</span>
-            </button>
-          </div>
-        </div>
+        <label className="field">
+          <span className="field-label">Seu e-mail (opcional)</span>
+          <input
+            type="email"
+            className="input"
+            placeholder="nome@exemplo.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </label>
       </div>
-    </div>
+
+      <label className="field" style={{ marginTop: 12 }}>
+        <span className="field-label">Mensagem / Passos para reproduzir</span>
+        <textarea
+          className="input feedback-textarea"
+          rows={4}
+          placeholder="Descreva o que aconteceu ou sua sugestão para o CytoCount..."
+          value={mensagem}
+          onChange={(e) => setMensagem(e.target.value)}
+        />
+      </label>
+
+      <label className="welcome-checkbox" style={{ marginTop: 12 }}>
+        <input
+          type="checkbox"
+          checked={anexarLog}
+          onChange={(e) => setAnexarLog(e.target.checked)}
+        />
+        <span>
+          Incluir informações do sistema (Versão {APP_VERSION}, SO) e log de diagnóstico
+        </span>
+      </label>
+
+      <div className="feedback-actions-bar" style={{ marginTop: 18 }}>
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={handleCopiar}
+        >
+          {copiado ? <CheckIcon size={14} className="text-emerald-400" /> : <CopyIcon size={14} />}
+          <span>{copiado ? "Relatório Copiado!" : "Copiar relatório"}</span>
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-secondary btn-sm"
+          onClick={handleSalvarArquivoLocal}
+        >
+          <DownloadIcon size={14} />
+          <span>Salvar relatório (.txt)</span>
+        </button>
+
+        <button
+          type="button"
+          className="btn btn-primary btn-sm"
+          onClick={handleAbrirEmail}
+        >
+          <MailIcon size={14} />
+          <span>Abrir no E-mail</span>
+        </button>
+      </div>
+    </Modal>
   );
 }
