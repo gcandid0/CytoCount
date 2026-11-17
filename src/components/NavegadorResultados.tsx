@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   CelulaIndividual,
   ClasseCelula,
@@ -30,8 +30,9 @@ import {
   ZoomOutIcon,
 } from "./Icons";
 
-type ModoAba = "processada" | "original" | "celulas" | "mascaras";
+type ModoAba = "processada" | "original" | "comparar" | "celulas" | "mascaras";
 type ModoFerramenta = "pan" | "toggle" | "add" | "delete";
+type OrdemCelulas = "id_asc" | "area_desc" | "area_asc" | "verde_desc" | "amarelo_desc" | "mean_desc";
 
 interface SnapshotEdicao {
   tabela: CelulaIndividual[];
@@ -74,6 +75,10 @@ export default function NavegadorResultados({
   const [arrastando, setArrastando] = useState(false);
   const [inicioArrasto, setInicioArrasto] = useState({ x: 0, y: 0 });
   const [filtroClasse, setFiltroClasse] = useState<string>("todas");
+  const [buscaCelulaId, setBuscaCelulaId] = useState<string>("");
+  const [ordemCelulas, setOrdemCelulas] = useState<OrdemCelulas>("id_asc");
+  const [celulaDestacadaId, setCelulaDestacadaId] = useState<number | null>(null);
+  const [splitPos, setSplitPos] = useState<number>(50);
 
   // Dimensões naturais da imagem atual (para overlay SVG e conversão de coordenadas)
   const [imgDim, setImgDim] = useState<{ w: number; h: number }>({ w: 1024, h: 1024 });
@@ -215,6 +220,10 @@ export default function NavegadorResultados({
       ) {
         e.preventDefault();
         handleRedo();
+      } else if (!e.ctrlKey && !e.metaKey && (e.key === "+" || e.key === "=")) {
+        setZoom((z) => Math.min(5, Number((z + 0.25).toFixed(2))));
+      } else if (!e.ctrlKey && !e.metaKey && e.key === "-") {
+        setZoom((z) => Math.max(0.5, Number((z - 0.25).toFixed(2))));
       }
     };
     window.addEventListener("keydown", onKey);
@@ -424,10 +433,58 @@ export default function NavegadorResultados({
     }
   };
 
-  const celulasFiltradas =
-    filtroClasse === "todas"
-      ? celulas
-      : celulas.filter((c) => c.classificacao === filtroClasse);
+  const celulasFiltradas = useMemo(() => {
+    let lista =
+      filtroClasse === "todas"
+        ? [...celulas]
+        : celulas.filter((c) => c.classificacao === filtroClasse);
+
+    if (buscaCelulaId.trim() !== "") {
+      const q = buscaCelulaId.trim().replace(/^#/, "");
+      lista = lista.filter((c) => String(c.celula_id).includes(q));
+    }
+
+    lista.sort((a, b) => {
+      if (ordemCelulas === "area_desc") return b.area_px - a.area_px;
+      if (ordemCelulas === "area_asc") return a.area_px - b.area_px;
+      if (ordemCelulas === "verde_desc") return b.cobertura_verde_pct - a.cobertura_verde_pct;
+      if (ordemCelulas === "amarelo_desc") return b.cobertura_amarela_pct - a.cobertura_amarela_pct;
+      if (ordemCelulas === "mean_desc") return (b.mean_intensity ?? 0) - (a.mean_intensity ?? 0);
+      return a.celula_id - b.celula_id;
+    });
+
+    return lista;
+  }, [celulas, filtroClasse, buscaCelulaId, ordemCelulas]);
+
+  const statsMorfologicas = useMemo(() => {
+    if (celulasFiltradas.length === 0) {
+      return { areaMedia: 0, areaDP: 0, areaMediana: 0, raioMedio: 0, meanInt: 0 };
+    }
+    const n = celulasFiltradas.length;
+    const areas = celulasFiltradas.map((c) => c.area_px).sort((a, b) => a - b);
+    const somaArea = areas.reduce((s, v) => s + v, 0);
+    const areaMedia = somaArea / n;
+    const variancia = areas.reduce((s, v) => s + (v - areaMedia) ** 2, 0) / n;
+    const areaDP = Math.sqrt(variancia);
+    const areaMediana =
+      n % 2 === 1 ? areas[Math.floor(n / 2)] : (areas[n / 2 - 1] + areas[n / 2]) / 2;
+    const raioMedio =
+      celulasFiltradas.reduce(
+        (s, c) => s + (c.raio_eq ?? Math.sqrt(c.area_px / Math.PI)),
+        0
+      ) / n;
+    const meanInt =
+      celulasFiltradas.reduce((s, c) => s + (c.mean_intensity ?? 0), 0) / n;
+    return { areaMedia, areaDP, areaMediana, raioMedio, meanInt };
+  }, [celulasFiltradas]);
+
+  const celulaDestacada = useMemo(
+    () =>
+      celulaDestacadaId !== null
+        ? celulas.find((c) => c.celula_id === celulaDestacadaId) ?? null
+        : null,
+    [celulas, celulaDestacadaId]
+  );
 
   const detectados = sel.relatorio.Detectados ?? sel.relatorio["Total (Azul)"] ?? 0;
   const vivas = sel.relatorio["Viáveis (Verde)"] ?? 0;
@@ -552,6 +609,18 @@ export default function NavegadorResultados({
             </button>
             <button
               type="button"
+              className={modo === "comparar" ? "active" : ""}
+              onClick={() => {
+                setModo("comparar");
+                setModoROI(false);
+                setFerramenta("pan");
+              }}
+              title="Comparar imagem Original e Processada com cortina deslizante A|B"
+            >
+              {idioma === "en" ? "Compare A|B" : idioma === "es" ? "Comparar A|B" : "Comparar A|B"}
+            </button>
+            <button
+              type="button"
               className={modo === "celulas" ? "active" : ""}
               onClick={() => setModo("celulas")}
               title={t.tab_cells_tooltip}
@@ -570,7 +639,7 @@ export default function NavegadorResultados({
           </div>
         </div>
 
-        {(modo === "processada" || modo === "original") && (
+        {(modo === "processada" || modo === "original" || modo === "comparar") && (
           <div className="viewer-toolbar">
             {/* Controle Único de Zoom */}
             <div className="zoom-segmented" role="group" aria-label="Zoom">
@@ -769,16 +838,47 @@ export default function NavegadorResultados({
           </div>
         )}
 
+        {modo === "comparar" && (
+          <div className="split-compare-bar">
+            <span className="split-compare-label">
+              <b>A · {t.tab_original}</b> ({splitPos}%)
+            </span>
+            <input
+              type="range"
+              className="range split-compare-slider"
+              min={0}
+              max={100}
+              value={splitPos}
+              onChange={(e) => setSplitPos(Number(e.target.value))}
+              aria-label="Posição da cortina de comparação"
+            />
+            <span className="split-compare-label">
+              <b>B · {t.tab_processed}</b> ({100 - splitPos}%)
+            </span>
+          </div>
+        )}
+
+        {celulaDestacada && (modo === "processada" || modo === "original") && (
+          <div className="cell-highlight-banner">
+            <span>
+              Destacando célula <b>#{celulaDestacada.celula_id}</b> — X:{" "}
+              {celulaDestacada.centro_x}px, Y: {celulaDestacada.centro_y}px, Área:{" "}
+              {celulaDestacada.area_px}px² ({celulaDestacada.classificacao})
+            </span>
+            <button
+              type="button"
+              className="roi-clear-inline"
+              onClick={() => setCelulaDestacadaId(null)}
+            >
+              <XIcon size={12} />
+              <span>Limpar destaque</span>
+            </button>
+          </div>
+        )}
+
         <div
           ref={wrapRef}
           className="viewer-image-wrap"
-          onWheel={(e) => {
-            if (modo === "processada" || modo === "original") {
-              e.preventDefault();
-              const delta = e.deltaY < 0 ? 0.2 : -0.2;
-              setZoom((z) => Math.max(0.5, Math.min(5, Number((z + delta).toFixed(2)))));
-            }
-          }}
           onMouseDown={(e) => {
             if (e.button !== 0) return;
             if (modoROI) {
@@ -872,6 +972,35 @@ export default function NavegadorResultados({
                 </svg>
               )}
 
+              {/* Marcador de célula destacada a partir da aba Mapa de Células */}
+              {celulaDestacada && (
+                <svg
+                  className="viewer-cells-svg-overlay"
+                  viewBox={`0 0 ${imgDim.w} ${imgDim.h}`}
+                  preserveAspectRatio="none"
+                >
+                  <g className="cell-target-marker">
+                    <circle
+                      cx={celulaDestacada.centro_x}
+                      cy={celulaDestacada.centro_y}
+                      r={Math.max(16, (celulaDestacada.raio_eq ?? 8) * 2.4)}
+                      fill="rgba(56, 189, 248, 0.16)"
+                      stroke="#38bdf8"
+                      strokeWidth={2.5}
+                    />
+                    <circle
+                      cx={celulaDestacada.centro_x}
+                      cy={celulaDestacada.centro_y}
+                      r={Math.max(8, (celulaDestacada.raio_eq ?? 8) * 1.2)}
+                      fill="transparent"
+                      stroke="#ffffff"
+                      strokeWidth={1.6}
+                      strokeDasharray="3,2"
+                    />
+                  </g>
+                </svg>
+              )}
+
               {caixaROINorm && (
                 <div
                   className="roi-selection-box"
@@ -893,12 +1022,96 @@ export default function NavegadorResultados({
             </div>
           )}
 
+          {modo === "comparar" && (
+            <div
+              className="viewer-canvas-stage viewer-split-stage"
+              style={{
+                transform: `translate(${pan.x}px, ${pan.y}px) scale(${zoom})`,
+                transformOrigin: "center center",
+                transition: arrastando ? "none" : "transform 0.1s ease-out",
+              }}
+            >
+              <img
+                ref={imgRef}
+                className="viewer-image"
+                src={`data:image/png;base64,${sel.processada_png_b64}`}
+                alt={`Processada - ${sel.relatorio.Arquivo}`}
+                draggable={false}
+              />
+              <img
+                className="viewer-image viewer-image-overlay-left"
+                src={`data:image/png;base64,${sel.original_png_b64}`}
+                alt={`Original - ${sel.relatorio.Arquivo}`}
+                draggable={false}
+                style={{
+                  clipPath: `inset(0 ${100 - splitPos}% 0 0)`,
+                }}
+              />
+              <div
+                className="split-curtain-line"
+                style={{ left: `${splitPos}%` }}
+              >
+                <span className="split-curtain-handle">A | B</span>
+              </div>
+            </div>
+          )}
+
           {modo === "celulas" && (
             <div className="cells-inspector">
+              {/* Resumo Morfológico da População Filtrada */}
+              <div className="cells-morph-summary">
+                <div className="morph-stat-pill">
+                  <span className="morph-stat-label">Área Média ± DP</span>
+                  <span className="morph-stat-val">
+                    {formatarDecimal(statsMorfologicas.areaMedia, idioma, 1)} ±{" "}
+                    {formatarDecimal(statsMorfologicas.areaDP, idioma, 1)} px²
+                  </span>
+                </div>
+                <div className="morph-stat-pill">
+                  <span className="morph-stat-label">Área Mediana</span>
+                  <span className="morph-stat-val">
+                    {formatarDecimal(statsMorfologicas.areaMediana, idioma, 1)} px²
+                  </span>
+                </div>
+                <div className="morph-stat-pill">
+                  <span className="morph-stat-label">Raio Equiv. Médio</span>
+                  <span className="morph-stat-val">
+                    {formatarDecimal(statsMorfologicas.raioMedio, idioma, 1)} px
+                  </span>
+                </div>
+                <div className="morph-stat-pill">
+                  <span className="morph-stat-label">Intensidade Média</span>
+                  <span className="morph-stat-val">
+                    {formatarDecimal(statsMorfologicas.meanInt, idioma, 1)}
+                  </span>
+                </div>
+              </div>
+
               <div className="cells-inspector-bar">
-                <span>
-                  {t.tab_cells}: <b>{formatarInteiro(celulasFiltradas.length, idioma)}</b>
-                </span>
+                <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                  <span>
+                    {t.tab_cells}: <b>{formatarInteiro(celulasFiltradas.length, idioma)}</b>
+                  </span>
+                  <input
+                    type="text"
+                    className="input cells-search-input"
+                    placeholder="Buscar #ID..."
+                    value={buscaCelulaId}
+                    onChange={(e) => setBuscaCelulaId(e.target.value)}
+                  />
+                  <select
+                    className="select cells-sort-select"
+                    value={ordemCelulas}
+                    onChange={(e) => setOrdemCelulas(e.target.value as OrdemCelulas)}
+                  >
+                    <option value="id_asc">Ordenar: #ID ↑</option>
+                    <option value="area_desc">Ordenar: Maior Área ↓</option>
+                    <option value="area_asc">Ordenar: Menor Área ↑</option>
+                    <option value="verde_desc">Ordenar: Maior Verde (%) ↓</option>
+                    <option value="amarelo_desc">Ordenar: Maior Amarelo (%) ↓</option>
+                    <option value="mean_desc">Ordenar: Maior Intensidade ↓</option>
+                  </select>
+                </div>
                 <div className="cells-filter-group">
                   {(["todas", "viavel", "morta", "indeterminada"] as const).map((f) => (
                     <button
@@ -934,7 +1147,16 @@ export default function NavegadorResultados({
                   </thead>
                   <tbody>
                     {celulasFiltradas.slice(0, 600).map((c) => (
-                      <tr key={c.celula_id}>
+                      <tr
+                        key={c.celula_id}
+                        className={celulaDestacadaId === c.celula_id ? "selected" : ""}
+                        style={{ cursor: "pointer" }}
+                        title="Clique para localizar e destacar esta célula na imagem"
+                        onClick={() => {
+                          setCelulaDestacadaId(c.celula_id);
+                          setModo("processada");
+                        }}
+                      >
                         <td className="num">
                           #{c.celula_id} {c.manual ? "*" : ""}
                         </td>

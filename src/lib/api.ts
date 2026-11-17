@@ -441,6 +441,7 @@ export interface OpcoesPublicacao {
   dpi: 300 | 600;
   idioma: Idioma;
   mostrar_contornos: boolean;
+  mostrar_legenda?: boolean;
   tema_fundo: "escuro" | "claro";
   paleta_daltonismo: boolean;
   lado_a_lado: boolean;

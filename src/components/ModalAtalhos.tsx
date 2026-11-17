@@ -15,7 +15,7 @@ export default function ModalAtalhos({
     { tecla: "Ctrl + Y", acao: "Refazer edição manual de célula" },
     { tecla: "Esc", acao: "Cancelar ROI ou fechar janelas" },
     { tecla: "← / →", acao: "Navegar entre amostras processadas" },
-    { tecla: "Scroll do Mouse", acao: "Zoom In / Zoom Out no viewer" },
+    { tecla: "+ / -", acao: "Aumentar / diminuir zoom pelos botões da barra" },
     { tecla: "Ctrl + S", acao: "Salvar projeto (.cytoproj)" },
     { tecla: "Ctrl + O", acao: "Abrir projeto (.cytoproj)" },
     { tecla: "Ctrl + M", acao: "Mesclar Canais (DAPI / FITC / PI)" },
