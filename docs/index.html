@@ -1,1072 +1,631 @@
 <!DOCTYPE html>
-
 <html lang="pt-BR">
-
 <head>
-
   <meta charset="UTF-8">
-
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-  <title>CytoCount — Contagem Celular & Morfometria de Citoplasma de Alta Performance</title>
-
+  <title>CytoCount &mdash; Contagem Celular &amp; Morfometria Citoplasm&aacute;tica de Alta Performance</title>
   
-
-  <meta name="description" content="Software desktop nativo e 100% offline para contagem celular automatizada, viabilidade celular tri-canal e segmentação morfométrica de citoplasma em microscopia de fluorescência.">
-
-  <meta property="og:title" content="CytoCount — High-Throughput Automated Cell Counting & Cytoplasmic Morphometry">
-
-  <meta property="og:description" content="Segmentação secundária de citoplasma Voronoi, análise de viabilidade tri-canal, motores Watershed/StarDist/Cellpose e exportação para artigos em 300 DPI.">
-
-  <meta property="og:image" content="https://gcandid0.github.io/CytoCount/assets/demo-slider.gif">
-
+  <meta name="description" content="Software desktop nativo e 100% offline para contagem celular automatizada, viabilidade tri-canal e segmenta&ccedil;&atilde;o morfom&eacute;trica de citoplasma em microscopia confocal e epifluoresc&ecirc;ncia.">
+  <meta property="og:title" content="CytoCount &mdash; High-Throughput Automated Cell Counting &amp; Cytoplasmic Morphometry">
+  <meta property="og:description" content="Leitura direta de microsc&oacute;pios Carl Zeiss (.czi), Leica (.lif), Nikon (.nd2), Olympus (.oib/.oif), OME-TIFF com Z-stack MIP autom&aacute;tico, segmenta&ccedil;&atilde;o Voronoi e intervalo Wilson 95%.">
+  <meta property="og:image" content="https://gcandid0.github.io/CytoCount/assets/screenshot-home.png">
   <meta property="og:url" content="https://gcandid0.github.io/CytoCount">
-
-  <meta name="theme-color" content="#06090e">
-
+  <meta name="theme-color" content="#04070d">
   
-
   <link rel="icon" type="image/png" href="assets/logo.png">
-
   <link rel="preconnect" href="https://fonts.googleapis.com">
-
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-
   <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
 
-
-
   <!-- Site Navigation Header -->
-
   <header class="site-header">
-
     <div class="container nav-wrap">
-
       <a href="#" class="brand">
-
         <img src="assets/logo.png" alt="CytoCount Logo" class="brand-logo">
-
         <span class="brand-title">CytoCount</span>
-
         <span class="brand-badge">v1.3.0</span>
-
       </a>
 
-
-
       <nav>
-
         <ul class="nav-menu">
-
-          <li class="nav-item"><a href="#showcase">Demonstração</a></li>
-
+          <li class="nav-item"><a href="#showcase">Demonstra&ccedil;&atilde;o</a></li>
+          <li class="nav-item"><a href="#formatos">Formatos Bio</a></li>
           <li class="nav-item"><a href="#recursos">Recursos</a></li>
-
           <li class="nav-item"><a href="#morfometria">Morfometria</a></li>
-
-          <li class="nav-item"><a href="#citacao">Citação DOI</a></li>
-
+          <li class="nav-item"><a href="#citacao">Cita&ccedil;&atilde;o DOI</a></li>
           <li class="nav-item"><a href="#downloads">Downloads</a></li>
-
         </ul>
-
       </nav>
 
-
-
       <div class="nav-actions">
-
         <a href="https://doi.org/10.5281/zenodo.24224692" target="_blank" rel="noopener" title="Zenodo Persistent DOI">
-
           <img src="https://zenodo.org/badge/1457897635.svg" alt="DOI" style="height: 22px; vertical-align: middle;">
-
         </a>
-
         <a href="https://github.com/gcandid0/CytoCount" target="_blank" rel="noopener" class="btn-icon-link">
-
           <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-
             <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-
           </svg>
-
           <span>GitHub</span>
-
         </a>
-
       </div>
-
     </div>
-
   </header>
 
-
-
   <!-- Hero Section -->
-
   <section class="hero">
-
     <div class="container">
-
       <div class="hero-pill">
-
         <span class="hero-pill-dot"></span>
-
-        <span>Versão 1.3.0 • Segmentação de Citoplasma & Auto-Updater</span>
-
+        <span>Vers&atilde;o 1.3.0 &bull; Leitura Direta de Microsc&oacute;pios Zeiss, Leica, Nikon &amp; Olympus</span>
       </div>
-
-
 
       <h1 class="hero-title">
-
-        Contagem Celular Automatizada & <br>
-
-        <span class="gradient-text">Morfometria Citoplasmática de Precisão</span>
-
+        Contagem Celular Automatizada &amp; <br>
+        <span class="gradient-text">Morfometria Citoplasm&aacute;tica de Precis&atilde;o</span>
       </h1>
 
-
-
       <p class="hero-desc">
-
-        Software desktop nativo e ultrarrápido (Rust + Python) para microscopia confocal e epifluorescência.
-
-        Segmentação de núcleos e citoplasma verde por partição Voronoi, viabilidade celular com intervalo de confiança estatístico de Wilson a 95% e exportação pronta para publicação científica em 300 DPI.
-
+        Software desktop nativo e ultrarr&aacute;pido (Rust + Python) para microscopia confocal e epifluoresc&ecirc;ncia.
+        Segmenta&ccedil;&atilde;o independente de citoplasma verde por parti&ccedil;&atilde;o geod&eacute;sica Voronoi, classifica&ccedil;&atilde;o tri-canal com intervalo de confian&ccedil;a de Wilson a 95% e exporta&ccedil;&atilde;o de alta resolu&ccedil;&atilde;o pronta para peri&oacute;dicos cient&iacute;ficos em 300 DPI.
       </p>
 
-
-
       <!-- Quick Download Links Grid -->
-
       <div class="download-grid" id="downloads">
-
-        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64-setup.exe" class="download-card primary" title="Baixar instalador padrão executável">
-
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64-setup.exe" class="download-card primary" title="Baixar instalador padrao executavel Windows">
           <div class="download-icon">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
-
               <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699M10.949 12.6H24V24l-12.949-1.801"/>
-
             </svg>
-
           </div>
-
           <div class="download-content">
-
             <div class="download-name">
-
               Instalador Windows
-
               <span class="download-badge">Setup</span>
-
             </div>
-
-            <div class="download-detail">124 MB • NSIS .exe • 64-bit</div>
-
+            <div class="download-detail">124 MB &bull; NSIS .exe &bull; 64-bit</div>
           </div>
-
         </a>
 
-
-
-        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_en-US.msi" class="download-card" title="Baixar instalador pacote MSI">
-
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_en-US.msi" class="download-card" title="Baixar instalador pacote corporativo MSI">
           <div class="download-icon">
-
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-
               <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
-
               <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
-
               <line x1="12" y1="22.08" x2="12" y2="12"></line>
-
             </svg>
-
           </div>
-
           <div class="download-content">
-
             <div class="download-name">Instalador MSI</div>
-
-            <div class="download-detail">125 MB • Pacote WiX .msi</div>
-
+            <div class="download-detail">125 MB &bull; Pacote WiX .msi</div>
           </div>
-
         </a>
 
-
-
-        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_Portable.zip" class="download-card" title="Baixar pacote portátil zip sem instalação">
-
+        <a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_Portable.zip" class="download-card" title="Baixar pacote portatil zip sem instalacao">
           <div class="download-icon">
-
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-
               <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-
               <line x1="12" y1="11" x2="12" y2="17"></line>
-
               <polyline points="9 14 12 17 15 14"></polyline>
-
             </svg>
-
           </div>
-
           <div class="download-content">
-
-            <div class="download-name">Pacote Portátil</div>
-
-            <div class="download-detail">125 MB • Execução Direta .zip</div>
-
+            <div class="download-name">Pacote Port&aacute;til</div>
+            <div class="download-detail">125 MB &bull; Execu&ccedil;&atilde;o Direta .zip</div>
           </div>
-
         </a>
-
       </div>
-
-
 
       <div class="hero-meta">
-
         <span class="meta-item">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-
             <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-
           </svg>
-
           100% Processamento Local (Sem Envio para Nuvem)
-
         </span>
-
         <span class="meta-divider"></span>
-
         <span class="meta-item">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-
             <polyline points="14 2 14 8 20 8"></polyline>
-
           </svg>
-
-          Licença MIT Open Source
-
+          Licen&ccedil;a MIT Open Source
         </span>
-
         <span class="meta-divider"></span>
-
         <span class="meta-item">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <polyline points="23 4 23 10 17 10"></polyline>
-
             <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
-
           </svg>
-
-          Auto-Atualização Segura (Ed25519)
-
+          Auto-Atualiza&ccedil;&atilde;o Criptogr&aacute;fica (Ed25519)
         </span>
-
         <span class="meta-divider"></span>
-
         <a href="https://github.com/gcandid0/CytoCount/releases" target="_blank" rel="noopener" style="color: var(--cyan); text-decoration: none; font-weight: 500;">
-
-          Todas as Releases no GitHub →
-
+          Todas as Releases no GitHub &rarr;
         </a>
+      </div>
 
+      <!-- Hero Application Window Preview -->
+      <div class="hero-preview">
+        <div class="app-window">
+          <div class="app-window-header">
+            <div class="window-dots">
+              <span class="window-dot dot-close"></span>
+              <span class="window-dot dot-minimize"></span>
+              <span class="window-dot dot-maximize"></span>
+            </div>
+            <div class="window-title">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <circle cx="12" cy="12" r="10"></circle>
+                <circle cx="12" cy="12" r="4"></circle>
+              </svg>
+              <span>CytoCount v1.3.0 &mdash; Est&uacute;dio de Bioimagem &amp; Morfometria Celular</span>
+            </div>
+            <div class="window-badge">Ambiente 100% Offline</div>
+          </div>
+          <div class="app-window-body">
+            <img src="assets/screenshot-home.png" alt="Interface Principal do CytoCount" loading="eager">
+          </div>
+        </div>
       </div>
 
     </div>
-
   </section>
 
-
+  <!-- Microscopy Ecosystem Compatibility Section -->
+  <section class="ecosystem-section" id="formatos">
+    <div class="container">
+      <div class="ecosystem-header">
+        <span class="ecosystem-tag">Compatibilidade Nativa com Microscopia Confocal &amp; Epifluoresc&ecirc;ncia</span>
+      </div>
+      <div class="ecosystem-grid">
+        <div class="eco-card">
+          <div class="eco-vendor">Carl Zeiss</div>
+          <div class="eco-format">.czi</div>
+          <div class="eco-detail">LSM 710 / 880 / 980 &bull; ZEN</div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-vendor">Leica Microsystems</div>
+          <div class="eco-format">.lif</div>
+          <div class="eco-detail">SP5 / SP8 / Stellaris &bull; LAS X</div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-vendor">Nikon Instruments</div>
+          <div class="eco-format">.nd2</div>
+          <div class="eco-detail">NIS-Elements &bull; A1R / Ti2-E</div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-vendor">Olympus / Evident</div>
+          <div class="eco-format">.oib &bull; .oif</div>
+          <div class="eco-detail">FluoView FV1000 / FV3000</div>
+        </div>
+        <div class="eco-card">
+          <div class="eco-vendor">OME-TIFF</div>
+          <div class="eco-format">.ome.tif &bull; .tif</div>
+          <div class="eco-detail">Bio-Formats Piramidal Multicanal</div>
+        </div>
+      </div>
+    </div>
+  </section>
 
   <!-- Interactive Visual Showcase Section -->
-
   <section class="showcase-section" id="showcase">
-
     <div class="container">
-
       <div class="section-header">
-
-        <span class="section-tag">Inspeção Visual Dinâmica</span>
-
-        <h2 class="section-title">Validação da Segmentação em Tempo Real</h2>
-
+        <span class="section-tag">Inspe&ccedil;&atilde;o Visual Din&acirc;mica</span>
+        <h2 class="section-title">Valida&ccedil;&atilde;o da Segmenta&ccedil;&atilde;o em Tempo Real</h2>
         <p class="section-desc">
-
-          Controle interativo subpixel para comparação direta entre fluorescência bruta e partições celulares identificadas.
-
+          Controle interativo subpixel para compara&ccedil;&atilde;o direta entre fluoresc&ecirc;ncia bruta e as parti&ccedil;&otilde;es celulares identificadas pelos algoritmos.
         </p>
-
       </div>
-
-
 
       <!-- Tab Buttons -->
-
       <div class="showcase-tabs">
-
         <button type="button" class="tab-btn active" data-tab="tab-curtain">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <line x1="18" y1="20" x2="18" y2="4"></line>
-
             <line x1="6" y1="20" x2="6" y2="4"></line>
-
             <line x1="12" y1="20" x2="12" y2="4"></line>
-
           </svg>
-
           Cortina Interativa A|B
-
         </button>
-
+        <button type="button" class="tab-btn" data-tab="tab-zstack">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <rect x="2" y="2" width="20" height="8" rx="2" ry="2"></rect>
+            <rect x="2" y="14" width="20" height="8" rx="2" ry="2"></rect>
+            <line x1="6" y1="6" x2="6.01" y2="6"></line>
+            <line x1="6" y1="18" x2="6.01" y2="18"></line>
+          </svg>
+          Microsc&oacute;pios &amp; Z-Stacks
+        </button>
         <button type="button" class="tab-btn" data-tab="tab-citoplasma">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <circle cx="12" cy="12" r="10"></circle>
-
             <circle cx="12" cy="12" r="4"></circle>
-
           </svg>
-
-          Segmentação de Citoplasma (Verde)
-
+          Citoplasma Voronoi (Verde)
         </button>
-
         <button type="button" class="tab-btn" data-tab="tab-viabilidade">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <path d="M22 12h-4l-3 9L9 3l-3 9H2"></path>
-
           </svg>
-
           Viabilidade Tri-Canal (DAPI/FITC/PI)
-
         </button>
-
         <button type="button" class="tab-btn" data-tab="tab-slides">
-
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
-
             <line x1="8" y1="21" x2="16" y2="21"></line>
-
             <line x1="12" y1="17" x2="12" y2="21"></line>
-
           </svg>
-
-          Modo Apresentação (Fundo Branco)
-
+          Modo Apresenta&ccedil;&atilde;o (Fundo Branco)
         </button>
-
       </div>
-
-
 
       <!-- Tab 1: Live Interactive Curtain Slider -->
-
       <div class="tab-panel active" id="tab-curtain">
-
-        <div class="curtain-container" title="Arraste para comparar a imagem pura e a segmentada">
-
-          <img src="assets/segmented-microscopy.jpg" alt="Segmentada" class="curtain-image-base">
-
-          <div class="curtain-overlay-wrap">
-
-            <img src="assets/raw-microscopy.jpg" alt="Original Bruta" class="curtain-image-overlay">
-
+        <div class="curtain-card">
+          <div class="curtain-container" title="Arraste para comparar a imagem pura e a segmentada">
+            <img src="assets/segmented-microscopy.jpg" alt="Segmentada" class="curtain-image-base">
+            <div class="curtain-overlay-wrap">
+              <img src="assets/raw-microscopy.jpg" alt="Original Bruta" class="curtain-image-overlay">
+            </div>
+            <div class="curtain-handle">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="15 18 9 12 15 6"></polyline>
+              </svg>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+            <span class="curtain-pill pill-left">Canal Fluorescente Original</span>
+            <span class="curtain-pill pill-right">Segmenta&ccedil;&atilde;o Voronoi / Ciano</span>
           </div>
-
-          <div class="curtain-handle">
-
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-
-              <polyline points="15 18 9 12 15 6"></polyline>
-
-            </svg>
-
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-
-              <polyline points="9 18 15 12 9 6"></polyline>
-
-            </svg>
-
-          </div>
-
-          <span class="curtain-pill curtain-pill-left">Canal Fluorescente Original</span>
-
-          <span class="curtain-pill curtain-pill-right">Segmentação Voronoi / Ciano</span>
-
         </div>
-
-        <p style="text-align: center; color: var(--text-tertiary); font-size: 0.82rem; margin-top: 14px;">
-
-          Arraste o cursor horizontalmente sobre a imagem para alternar o canal original puro e os contornos celulares identificados.
-
+        <p style="text-align: center; color: var(--text-muted); font-size: 0.84rem; margin-top: 14px;">
+          Arraste o cursor horizontalmente sobre a imagem para alternar continuamente entre o canal original puro e os contornos celulares identificados.
         </p>
-
       </div>
 
+      <!-- Tab 2: Microscopes & Z-Stack MIP GIF -->
+      <div class="tab-panel" id="tab-zstack">
+        <div class="media-card">
+          <div class="media-wrap">
+            <img src="assets/demo-slider.gif" alt="Navegacao Z-Stack e Contraste em Tempo Real CytoCount" loading="lazy">
+          </div>
+          <div class="media-info">
+            <div class="media-text">
+              <h3>Proje&ccedil;&atilde;o de Intensidade M&aacute;xima (MIP) &amp; Ajuste Din&acirc;mico</h3>
+              <p>Achateamento autom&aacute;tico de planos Z confocal e controle instant&acirc;neo de brilho/contraste linear e logar&iacute;tmico.</p>
+            </div>
+            <div class="media-stats">
+              <div class="stat-item">Formatos<strong>CZI, LIF, ND2, OIF</strong></div>
+              <div class="stat-item">MIP<strong>Autom&aacute;tico (Z-Max)</strong></div>
+              <div class="stat-item">Lat&ecirc;ncia<strong>Sub-10ms (Rust Core)</strong></div>
+            </div>
+          </div>
+        </div>
+      </div>
 
-
-      <!-- Tab 2: Cytoplasm GIF -->
-
+      <!-- Tab 3: Cytoplasm Voronoi GIF -->
       <div class="tab-panel" id="tab-citoplasma">
-
         <div class="media-card">
-
           <div class="media-wrap">
-
-            <img src="assets/demo-citoplasma.gif" alt="Segmentação de Citoplasma Voronoi CytoCount" loading="lazy">
-
+            <img src="assets/demo-citoplasma.gif" alt="Segmentacao de Citoplasma Voronoi CytoCount" loading="lazy">
           </div>
-
           <div class="media-info">
-
             <div class="media-text">
-
-              <h3>Delimitação Morfométrica de Citoplasma (FITC / Verde)</h3>
-
-              <p>Particionamento Voronoi/Geodésico centrado nos núcleos DAPI sem sobreposição celular contígua.</p>
-
+              <h3>Delimita&ccedil;&atilde;o Morfom&eacute;trica de Citoplasma (FITC / Verde)</h3>
+              <p>Particionamento Voronoi geod&eacute;sico centrado nos n&uacute;cleos DAPI sem sobreposi&ccedil;&atilde;o celular cont&iacute;gua.</p>
             </div>
-
             <div class="media-stats">
-
-              <div class="stat-item">Núcleos DAPI<strong>878</strong></div>
-
+              <div class="stat-item">N&uacute;cleos DAPI<strong>878</strong></div>
               <div class="stat-item">Com Citoplasma<strong>738 (84,1%)</strong></div>
-
-              <div class="stat-item">Razão N:C<strong>1,13</strong></div>
-
+              <div class="stat-item">Raz&atilde;o N:C M&eacute;dia<strong>1,13</strong></div>
             </div>
-
           </div>
-
         </div>
-
       </div>
 
-
-
-      <!-- Tab 3: Viability GIF -->
-
+      <!-- Tab 4: Viability GIF -->
       <div class="tab-panel" id="tab-viabilidade">
-
         <div class="media-card">
-
           <div class="media-wrap">
-
-            <img src="assets/demo-viabilidade.gif" alt="Análise de Viabilidade Celular CytoCount" loading="lazy">
-
+            <img src="assets/demo-viabilidade.gif" alt="Analise de Viabilidade Celular CytoCount" loading="lazy">
           </div>
-
           <div class="media-info">
-
             <div class="media-text">
-
-              <h3>Classificação Rigorosa Tri-Canal (DAPI + FITC + PI)</h3>
-
-              <p>Cálculo estatístico com intervalo de confiança de Wilson (95%) e auditoria anti-falso-positivo.</p>
-
+              <h3>Classifica&ccedil;&atilde;o Rigorosa Tri-Canal (DAPI + FITC + PI)</h3>
+              <p>C&aacute;lculo estat&iacute;stico com intervalo de confian&ccedil;a de Wilson (95%) e auditoria matem&aacute;tica anti-falso-positivo.</p>
             </div>
-
             <div class="media-stats">
-
               <div class="stat-item">Vivas (Verde)<strong>259</strong></div>
-
               <div class="stat-item">Mortas (Amarelo)<strong>10</strong></div>
-
-              <div class="stat-item">Estatística<strong>IC 95% Wilson</strong></div>
-
+              <div class="stat-item">Estat&iacute;stica<strong>IC 95% Wilson</strong></div>
             </div>
-
           </div>
-
         </div>
-
       </div>
 
-
-
-      <!-- Tab 4: Slides Presentation Mode -->
-
+      <!-- Tab 5: Slides Presentation Mode -->
       <div class="tab-panel" id="tab-slides">
-
         <div class="media-card">
-
           <div class="media-wrap" style="aspect-ratio: 16 / 9;">
-
             <img src="assets/apresentacao-slides-branco.jpg" alt="Preset Fundo Branco Puro para Slides e Artigos" loading="lazy">
-
           </div>
-
           <div class="media-info">
-
             <div class="media-text">
-
-              <h3>Fundo Branco Puro (#ffffff) para PowerPoint, Word e Artigos</h3>
-
-              <p>Elimina molduras cinzas e fundos pretos pesados em apresentações acadêmicas e teses.</p>
-
+              <h3>Fundo Branco Puro (#ffffff) para PowerPoint, Teses e Artigos</h3>
+              <p>Elimina molduras cinzas e fundos pretos pesados em apresenta&ccedil;&otilde;es acad&ecirc;micas e publica&ccedil;&otilde;es de alto impacto.</p>
             </div>
-
             <div class="media-stats">
-
-              <div class="stat-item">Resolução<strong>300 DPI</strong></div>
-
+              <div class="stat-item">Resolu&ccedil;&atilde;o<strong>300 DPI</strong></div>
               <div class="stat-item">Fundo<strong>#ffffff Puro</strong></div>
-
               <div class="stat-item">Escala<strong>Calibrada &micro;m</strong></div>
-
             </div>
-
           </div>
-
         </div>
-
       </div>
-
-
 
     </div>
-
   </section>
-
-
 
   <!-- Features Grid (Bento Grid) -->
-
   <section class="features-section" id="recursos">
-
     <div class="container">
-
       <div class="section-header">
-
-        <span class="section-tag">Arquitetura de Precisão</span>
-
-        <h2 class="section-title">Engenharia Científica de Bioimagem</h2>
-
+        <span class="section-tag">Arquitetura de Precis&atilde;o</span>
+        <h2 class="section-title">Engenharia Cient&iacute;fica de Bioimagem</h2>
         <p class="section-desc">
-
-          Integração de motores neurais e algorítmicos clássicos otimizados para alto rendimento.
-
+          Integra&ccedil;&atilde;o de motores neurais e algoritmos anal&iacute;ticos cl&aacute;ssicos otimizados para alto rendimento e m&aacute;xima reprodutibilidade.
         </p>
-
       </div>
-
-
 
       <div class="bento-grid">
-
-                <div class="bento-card">
-
+        <div class="bento-card">
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
-
             </svg>
-
           </div>
-
-          <h3 class="bento-title">Microscópios Proprietários & Z-Stacks</h3>
-
+          <h3 class="bento-title">Microsc&oacute;pios Propriet&aacute;rios &amp; Z-Stacks</h3>
           <p class="bento-desc">
-
-            Ingestão direta de arquivos <strong>Carl Zeiss (.czi)</strong>, <strong>Leica (.lif)</strong>, <strong>Nikon (.nd2)</strong>, <strong>Olympus (.oib, .oif)</strong> e <strong>OME-TIFF</strong> com Projeção de Intensidade Máxima (MIP) automática.
-
+            Ingest&atilde;o direta de arquivos brutos <strong>Carl Zeiss (.czi)</strong>, <strong>Leica (.lif)</strong>, <strong>Nikon (.nd2)</strong>, <strong>Olympus (.oib, .oif)</strong> e <strong>OME-TIFF</strong> com Proje&ccedil;&atilde;o de Intensidade M&aacute;xima (MIP) autom&aacute;tica em Z.
           </p>
-
         </div>
 
-
-
         <div class="bento-card">
-
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <path d="M12 2v20M2 12h20"></path>
-
               <circle cx="12" cy="12" r="6"></circle>
-
             </svg>
-
           </div>
-
-          <h3 class="bento-title">Citoplasma Independente</h3>
-
+          <h3 class="bento-title">Citoplasma Voronoi Independente</h3>
           <p class="bento-desc">
-
-            Dois fluxos de processamento isolados. A segmentação citoplasmática atua estritamente sobre a morfometria celular verde sem distorcer o modelo estocástico de viabilidade.
-
+            Dois pipelines matematicamente isolados. A morfometria citoplasm&aacute;tica atua estritamente sobre a &aacute;rea celular verde sem distorcer o modelo estoc&aacute;stico de viabilidade.
           </p>
-
         </div>
 
-
-
         <div class="bento-card">
-
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <polygon points="12 2 2 7 12 12 22 7 12 2"></polygon>
-
               <polyline points="2 17 12 22 22 17"></polyline>
-
               <polyline points="2 12 12 17 22 12"></polyline>
-
             </svg>
-
           </div>
-
-          <h3 class="bento-title">3 Motores de Segmentação</h3>
-
+          <h3 class="bento-title">3 Motores de Segmenta&ccedil;&atilde;o</h3>
           <p class="bento-desc">
-
-            Alternância instantânea entre <strong>Watershed Clássico</strong> por distância euclidiana, <strong>StarDist 2D</strong> (polígonos estrelados de 32 raios) e <strong>Cellpose 2D</strong> (fluxo vetorial de gradientes).
-
+            Altern&acirc;ncia instant&acirc;nea entre <strong>Watershed Euclidiano</strong> de alta velocidade, <strong>StarDist 2D</strong> (pol&iacute;gonos estrelados de 32 raios) e <strong>Cellpose 2D</strong> (fluxo vetorial de gradientes para aglomerados densos).
           </p>
-
         </div>
-
-
 
         <div class="bento-card">
-
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <rect x="2" y="6" width="20" height="12" rx="2"></rect>
-
               <line x1="6" y1="6" x2="6" y2="10"></line>
-
               <line x1="10" y1="6" x2="10" y2="12"></line>
-
               <line x1="14" y1="6" x2="14" y2="10"></line>
-
               <line x1="18" y1="6" x2="18" y2="12"></line>
-
             </svg>
-
           </div>
-
-          <h3 class="bento-title">Régua Micrométrica Calibrada</h3>
-
+          <h3 class="bento-title">R&eacute;gua Microm&eacute;trica Calibrada</h3>
           <p class="bento-desc">
-
-            Insere retículos e barras de escala de acordo com a magnificação e a calibração em &micro;m/pixel da sua câmera, atendendo aos padrões rígidos de periódicos da Nature e Cell.
-
+            Insere ret&iacute;culos e barras de escala calibradas em &micro;m/pixel de acordo com a objetiva utilizada, cumprindo as exig&ecirc;ncias formais dos peri&oacute;dicos dos grupos Nature, Cell e Science.
           </p>
-
         </div>
-
-
 
         <div class="bento-card span-2">
-
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <line x1="18" y1="20" x2="18" y2="10"></line>
-
               <line x1="12" y1="20" x2="12" y2="4"></line>
-
               <line x1="6" y1="20" x2="6" y2="14"></line>
-
             </svg>
-
           </div>
-
-          <h3 class="bento-title">Estatística Robusta: Intervalo de Confiança Wilson a 95%</h3>
-
+          <h3 class="bento-title">Estat&iacute;stica Robusta: Intervalo de Confian&ccedil;a Wilson a 95%</h3>
           <p class="bento-desc">
-
-            Diferente de contadores empíricos, o CytoCount calcula o intervalo de confiança binomial de Wilson a 95%, garantindo a conservação integral dos núcleos identificados (<code>Detectados = Vivas + Mortas + Indeterminadas</code>) com emissão de alertas automáticos quando o sinal de marcação for insuficiente.
-
+            Diferente de contadores emp&iacute;ricos, o CytoCount calcula o intervalo binomial de Wilson a 95%, garantindo a conserva&ccedil;&atilde;o integral dos n&uacute;cleos identificados (<code>Detectados = Vivas + Mortas + Indeterminadas</code>) com emiss&atilde;o de alertas autom&aacute;ticos quando o sinal de marca&ccedil;&atilde;o for insuficiente.
           </p>
-
         </div>
-
-
 
         <div class="bento-card">
-
           <div class="bento-icon-box">
-
             <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
-
             </svg>
-
           </div>
-
           <h3 class="bento-title">Privacidade Laboratorial Total</h3>
-
           <p class="bento-desc">
-
-            Execução estritamente local. Os dados confidenciais de linhagens celulares, patentes e pesquisas pré-clínicas permanecem isolados na sua máquina, sem qualquer transferência externa.
-
+            Execu&ccedil;&atilde;o estritamente local em m&aacute;quina desktop. Os dados confidenciais de linhagens celulares, patentes e pesquisas pr&eacute;-cl&iacute;nicas permanecem sob controle do laborat&oacute;rio, sem qualquer conex&atilde;o externa.
           </p>
-
         </div>
-
       </div>
-
     </div>
-
   </section>
-
-
 
   <!-- Morphometry Matrix Section -->
-
   <section class="matrix-section" id="morfometria">
-
     <div class="container">
-
       <div class="section-header">
-
-        <span class="section-tag">Métricas de Amostragem</span>
-
+        <span class="section-tag">M&eacute;tricas de Amostragem</span>
         <h2 class="section-title">Matriz Comparativa de Resultados</h2>
-
         <p class="section-desc">
-
-          Quantificação morfométrica real gerada na lâmina de microscopia confocal teste (1024x1024 px).
-
+          Quantifica&ccedil;&atilde;o morfom&eacute;trica real gerada sobre l&acirc;mina de microscopia confocal teste (resolu&ccedil;&atilde;o 1024 &times; 1024 px).
         </p>
-
       </div>
-
-
 
       <div class="matrix-box">
-
         <div class="matrix-header">
-
-          <h3 class="matrix-title">Relatório de Amostra Confocal Teste</h3>
-
-          <span class="badge-tag badge-cyan">Resolução 1024 x 1024 px</span>
-
+          <h3 class="matrix-title">Relat&oacute;rio de Amostra Confocal Teste</h3>
+          <span class="badge-tag badge-cyan">Resolu&ccedil;&atilde;o 1024 &times; 1024 px</span>
         </div>
-
         <table class="matrix-table">
-
           <thead>
-
             <tr>
-
-              <th>Parâmetro Morfométrico</th>
-
+              <th>Par&acirc;metro Morfom&eacute;trico</th>
               <th>Modo Citoplasma (Verde)</th>
-
               <th>Modo Viabilidade Tri-Canal</th>
-
             </tr>
-
           </thead>
-
           <tbody>
-
             <tr>
-
-              <td><strong>Células / Núcleos Detectados (DAPI)</strong></td>
-
-              <td>878 núcleos</td>
-
-              <td>878 núcleos</td>
-
+              <td>C&eacute;lulas / N&uacute;cleos Detectados (DAPI)</td>
+              <td>878 n&uacute;cleos</td>
+              <td>878 n&uacute;cleos</td>
             </tr>
-
             <tr>
-
-              <td><strong>Células com Citoplasma Verde (FITC)</strong></td>
-
-              <td><strong>738 células (84,1%)</strong> <span class="badge-tag badge-green">Identificadas</span></td>
-
-              <td>259 células viáveis (29,5%)</td>
-
+              <td>C&eacute;lulas com Citoplasma Verde (FITC)</td>
+              <td><span class="val-pill pill-green">738 c&eacute;lulas (84,1%)</span></td>
+              <td>259 c&eacute;lulas vi&aacute;veis (29,5%)</td>
             </tr>
-
             <tr>
-
-              <td><strong>Células sem Citoplasma / Mortas</strong></td>
-
-              <td>140 células (15,9%)</td>
-
-              <td>10 células mortas (1,1%)</td>
-
+              <td>C&eacute;lulas sem Citoplasma / Mortas</td>
+              <td>140 c&eacute;lulas (15,9%)</td>
+              <td>10 c&eacute;lulas mortas (1,1%)</td>
             </tr>
-
             <tr>
-
-              <td><strong>Área Média Nuclear</strong></td>
-
-              <td>235,0 px²</td>
-
-              <td>—</td>
-
+              <td>&Aacute;rea M&eacute;dia Nuclear</td>
+              <td>235,0 px&sup2;</td>
+              <td>&mdash;</td>
             </tr>
-
             <tr>
-
-              <td><strong>Área Média Citoplasmática</strong></td>
-
-              <td>402,5 px²</td>
-
-              <td>—</td>
-
+              <td>&Aacute;rea M&eacute;dia Citoplasm&aacute;tica</td>
+              <td>402,5 px&sup2;</td>
+              <td>&mdash;</td>
             </tr>
-
             <tr>
-
-              <td><strong>Área Média Celular Total</strong></td>
-
-              <td>637,5 px²</td>
-
-              <td>—</td>
-
+              <td>&Aacute;rea M&eacute;dia Celular Total</td>
+              <td>637,5 px&sup2;</td>
+              <td>&mdash;</td>
             </tr>
-
             <tr>
-
-              <td><strong>Razão Núcleo-Citoplasma Média (N:C)</strong></td>
-
-              <td><strong>1,13</strong></td>
-
-              <td>—</td>
-
+              <td>Raz&atilde;o N&uacute;cleo-Citoplasma M&eacute;dia (N:C)</td>
+              <td><span class="val-pill pill-cyan">1,13</span></td>
+              <td>&mdash;</td>
             </tr>
-
             <tr>
-
-              <td><strong>Intervalo de Confiança (Wilson 95%)</strong></td>
-
-              <td>—</td>
-
-              <td>96,3% [93,3% — 98,0%]</td>
-
+              <td>Intervalo de Confian&ccedil;a (Wilson 95%)</td>
+              <td>&mdash;</td>
+              <td>96,3% [93,3% &mdash; 98,0%]</td>
             </tr>
-
           </tbody>
-
         </table>
-
       </div>
-
     </div>
-
   </section>
-
-
 
   <!-- Citation Section -->
-
   <section class="matrix-section" id="citacao" style="padding-top: 0;">
-
     <div class="container">
-
       <div class="section-header">
-
-        <span class="section-tag">Citação & Reprodutibilidade</span>
-
+        <span class="section-tag">Cita&ccedil;&atilde;o &amp; Reprodutibilidade</span>
         <h2 class="section-title">Identificador Persistente Zenodo</h2>
-
         <p class="section-desc">
-
-          Para citar o software CytoCount em sua dissertação, tese ou publicação científica:
-
+          Para referenciar o software CytoCount em sua disserta&ccedil;&atilde;o, tese ou artigo cient&iacute;fico indexado:
         </p>
-
       </div>
-
-
 
       <div class="citation-box">
-
-        <div class="citation-head">
-
-          <span class="citation-label">Registro BibTeX Oficial</span>
-
+        <div class="citation-header">
+          <span class="citation-title">Registro BibTeX Oficial</span>
           <button type="button" class="btn-copy" id="btn-copy-citation">
-
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-
               <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-
               <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-
             </svg>
-
             <span>Copiar BibTeX</span>
-
           </button>
-
         </div>
-
-        <pre class="citation-code" id="citation-code">@software{candido_2026_cytocount,
-
+        <div class="code-wrap">
+          <pre id="citation-code">@software{candido_2026_cytocount,
   author       = {Cândido, Gabriel},
-
   title        = {{CytoCount: High-Throughput Automated Cell Counting, 
-
                   Cytoplasmic Morphometry and Viability Analysis for 
-
                   Fluorescence Microscopy}},
-
   month        = nov,
-
   year         = 2026,
-
   publisher    = {Zenodo},
-
   version      = {v1.3.0},
-
   doi          = {10.5281/zenodo.24224693},
-
   url          = {https://doi.org/10.5281/zenodo.24224693}
-
 }</pre>
-
+        </div>
       </div>
-
     </div>
-
   </section>
 
-
-
-  <!-- Footer -->
-
+  <!-- Site Footer -->
   <footer class="site-footer">
-
     <div class="container">
-
       <div class="footer-grid">
-
         <div>
-
           <div class="brand">
-
-            <img src="assets/logo.png" alt="CytoCount" class="brand-logo" style="width: 26px; height: 26px;">
-
-            <span class="brand-title" style="font-size: 1.05rem;">CytoCount</span>
-
+            <img src="assets/logo.png" alt="CytoCount" class="brand-logo" style="width: 28px; height: 28px;">
+            <span class="brand-title" style="font-size: 1.08rem;">CytoCount</span>
           </div>
-
           <p class="footer-desc">
-
-            Plataforma científica para contagem celular, viabilidade e segmentação morfométrica de citoplasma em microscopia de fluorescência.
-
+            Plataforma cient&iacute;fica para contagem celular automatizada, viabilidade e segmenta&ccedil;&atilde;o morfom&eacute;trica de citoplasma em microscopia confocal e fluorescente.
           </p>
-
-          <div style="margin-top: 16px;">
-
+          <div style="margin-top: 18px;">
             <a href="https://doi.org/10.5281/zenodo.24224692" target="_blank" rel="noopener">
-
               <img src="https://zenodo.org/badge/1457897635.svg" alt="DOI">
-
             </a>
-
           </div>
-
         </div>
 
-
-
         <div>
-
           <h4 class="footer-title">Instaladores Oficiais</h4>
-
           <ul class="footer-links">
-
             <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64-setup.exe">Instalador NSIS (.exe)</a></li>
-
             <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_en-US.msi">Instalador MSI (.msi)</a></li>
-
-            <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_Portable.zip">Pacote Portátil (.zip)</a></li>
-
-            <li><a href="https://github.com/gcandid0/CytoCount/releases">Todas as Versões</a></li>
-
+            <li><a href="https://github.com/gcandid0/CytoCount/releases/latest/download/CytoCount_1.3.0_x64_Portable.zip">Pacote Port&aacute;til (.zip)</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/releases">Todas as Releases no GitHub</a></li>
           </ul>
-
         </div>
-
-
 
         <div>
-
-          <h4 class="footer-title">Código & Reprodutibilidade</h4>
-
+          <h4 class="footer-title">C&oacute;digo &amp; Reprodutibilidade</h4>
           <ul class="footer-links">
-
-            <li><a href="https://github.com/gcandid0/CytoCount" target="_blank" rel="noopener">Repositório GitHub</a></li>
-
+            <li><a href="https://github.com/gcandid0/CytoCount" target="_blank" rel="noopener">Reposit&oacute;rio no GitHub</a></li>
             <li><a href="https://github.com/gcandid0/CytoCount/issues" target="_blank" rel="noopener">Rastreador de Problemas</a></li>
-
-            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Guia de Contribuição</a></li>
-
-            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/LICENSE" target="_blank" rel="noopener">Licença MIT</a></li>
-
+            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/CONTRIBUTING.md" target="_blank" rel="noopener">Guia de Contribui&ccedil;&atilde;o</a></li>
+            <li><a href="https://github.com/gcandid0/CytoCount/blob/main/LICENSE" target="_blank" rel="noopener">Licen&ccedil;a MIT</a></li>
           </ul>
-
         </div>
-
       </div>
-
-
 
       <div class="footer-bottom">
-
         <div>&copy; 2026 Gabriel Cândido. Distribuído sob a Licença MIT.</div>
-
-        <div>Construído com Tauri v2, Rust, React, Vite & Python.</div>
-
+        <div>Construído com Tauri v2, Rust, React, Vite &amp; Python.</div>
       </div>
-
     </div>
-
   </footer>
 
-
-
   <script src="app.js"></script>
-
 </body>
-
 </html>
-
