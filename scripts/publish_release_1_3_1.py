@@ -52,16 +52,16 @@ latest_data = {
     "pub_date": datetime.datetime.now(datetime.timezone.utc).isoformat(),
     "platforms": {
         "windows-x86_64": {
-            "signature": msi_sig,
-            "url": f"https://github.com/{repo}/releases/download/{tag_name}/CytoCount_{version}_x64_en-US.msi"
-        },
-        "windows-x86_64-msi": {
-            "signature": msi_sig,
-            "url": f"https://github.com/{repo}/releases/download/{tag_name}/CytoCount_{version}_x64_en-US.msi"
+            "signature": nsis_sig,
+            "url": f"https://github.com/{repo}/releases/download/{tag_name}/CytoCount_{version}_x64-setup.exe"
         },
         "windows-x86_64-nsis": {
             "signature": nsis_sig,
             "url": f"https://github.com/{repo}/releases/download/{tag_name}/CytoCount_{version}_x64-setup.exe"
+        },
+        "windows-x86_64-msi": {
+            "signature": msi_sig,
+            "url": f"https://github.com/{repo}/releases/download/{tag_name}/CytoCount_{version}_x64_en-US.msi"
         }
     }
 }
