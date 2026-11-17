@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+message: "Se você utilizar o CytoCount em pesquisas ou publicações científicas, por favor cite conforme abaixo."
+title: "CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter"
+version: "1.1.0"
+date-released: 2026-11-13
+authors:
+  - family-names: "Santos"
+    given-names: "Gabriel Candido Messias dos"
+location: "Campinas"
+preferred-citation:
+  type: software
+  title: "CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter"
+  version: "1.1.0"
+  year: 2026
+  authors:
+    - family-names: "Santos"
+      given-names: "Gabriel Candido Messias dos"
+  notes: "SANTOS, Gabriel Candido Messias dos. CytoCount: Automated Fluorescence Cell Viability Counter and Morphological Segmenter. Versão 1.1.0. Campinas, 2026."

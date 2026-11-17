@@ -1,0 +1,16 @@
+node_modules/
+.venv/
+dist/
+build/
+backend/dist/
+backend/build/
+src-tauri/target/
+src-tauri/binaries/
+*.exe
+*.msi
+*.zip
+*.log
+__pycache__/
+*.pyc
+.DS_Store
+Thumbs.db
