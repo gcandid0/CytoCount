@@ -472,22 +472,20 @@ def desenhar_celulas_de_tabela(
             "morta": (0, 255, 255),
             "indeterminada": (255, 100, 30),
         }
-        cor_nucleo_base = (255, 0, 0)
+        cor_borda_cito = (80, 180, 220)
 
     for cel in tabela_celulas:
         classe = cel.get("classificacao", "indeterminada")
         cor = cores.get(classe, cores["indeterminada"])
         pts = cel.get("contorno_pts")
         pts_cito = cel.get("contorno_citoplasma_pts")
+        # 1. Borda morfológica do citoplasma (sem atribuir cor de viabilidade ao citoplasma)
         if pts_cito and isinstance(pts_cito, list) and len(pts_cito) >= 3:
-            if pts and isinstance(pts, list) and len(pts) >= 3:
-                arr_nuc = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
-                cv2.drawContours(saida, [arr_nuc], -1, cor_nucleo_base, 1)
             arr_cito = np.array(pts_cito, dtype=np.int32).reshape((-1, 1, 2))
-            cv2.drawContours(saida, [arr_cito], -1, cor, 1)
-        elif pts and isinstance(pts, list) and len(pts) >= 3:
+            cv2.drawContours(saida, [arr_cito], -1, cor_borda_cito, 1)
+        # 2. Contorno do núcleo com a cor de viabilidade celular (viva/morta/indeterminada)
+        if pts and isinstance(pts, list) and len(pts) >= 3:
             arr_pts = np.array(pts, dtype=np.int32).reshape((-1, 1, 2))
-            cv2.drawContours(saida, [arr_pts], -1, cor_nucleo_base, 1)
             cv2.drawContours(saida, [arr_pts], -1, cor, 1)
         else:
             cx = int(cel.get("centro_x", 0))
@@ -978,18 +976,19 @@ def classificar_nucleos(
         sub_obj = np.uint8(mask_nucleo) * 255
         area_nucleo = int(mask_nucleo.sum())
 
+        # Quantificação de viabilidade é estritamente nuclear (DAPI + halo imediato de referência)
+        sub_regiao = cv2.dilate(sub_obj, kernel_nuc) > 0 if area_nucleo > 0 else (sub_labels == label_id)
+        area_regiao = int(sub_regiao.sum())
+
+        # Morfologia do citoplasma: delimitado quando ativo, sem interferir na viabilidade
+        area_citoplasma = 0
         if usar_cito and labels_citoplasma is not None:
             sub_cito = labels_citoplasma[y0:y1, x0:x1] == label_id
-            # Garante que o núcleo sempre faz parte do domínio da célula
-            sub_regiao = sub_cito | mask_nucleo
-            sub_nuc = cv2.dilate(sub_obj, kernel_nuc) > 0 if area_nucleo > 0 else sub_regiao
-        else:
-            sub_regiao = cv2.dilate(sub_obj, kernel) > 0
-            sub_nuc = sub_regiao
+            sub_celula = sub_cito | mask_nucleo
+            area_citoplasma = max(0, int(sub_celula.sum()) - area_nucleo)
 
-        area_regiao = int(sub_regiao.sum())
-        area_citoplasma = max(0, area_regiao - area_nucleo)
-        mask_desenho = sub_regiao if usar_cito else mask_nucleo
+        # Máscaras de viabilidade celular: SEMPRE no núcleo
+        mask_desenho = mask_nucleo
 
         if area_regiao < min_pixels_regiao or area_regiao == 0:
             # Nunca descarta núcleo: classifica como indeterminada para manter consistência exata
@@ -1002,12 +1001,8 @@ def classificar_nucleos(
             sub_verde = mask_verde_bin[y0:y1, x0:x1]
             sub_amarelo = mask_amarela_bin[y0:y1, x0:x1]
 
-            if usar_cito:
-                frac_verde = float(sub_verde[sub_regiao].mean())
-                frac_amarela = float(sub_amarelo[sub_nuc].mean())
-            else:
-                frac_verde = float(sub_verde[sub_regiao].mean())
-                frac_amarela = float(sub_amarelo[sub_regiao].mean())
+            frac_verde = float(sub_verde[sub_regiao].mean())
+            frac_amarela = float(sub_amarelo[sub_regiao].mean())
 
             pos_verde = frac_verde >= FRACAO_MINIMA_VERDE
             pos_amarelo = frac_amarela >= FRACAO_MINIMA_AMARELA
@@ -1492,6 +1487,9 @@ def processar_canais_em_memoria(
 
     # Imagem para visualização em tela: APENAS contornos limpos (sem cv2.putText sobreposto!)
     saida_limpa_bgr = img_bgr.copy()
+    if labels_cito is not None:
+        # Borda morfológica celular (citoplasma / anel Voronoi) em tom ciano sutil (BGR: 220, 180, 80)
+        saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, labels_cito, (220, 180, 80), 1)
     saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, lab_azul, (255, 0, 0))
     saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, classificacao["labels_viaveis"], (0, 255, 0))
     saida_limpa_bgr = desenhar_contornos(saida_limpa_bgr, classificacao["labels_mortas"], (0, 255, 255))
